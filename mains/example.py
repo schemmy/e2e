@@ -1,8 +1,8 @@
 import tensorflow as tf
 
 from data_loader.data_generator import DataGenerator
-from models.example_model import ExampleModel
-from trainers.example_trainer import ExampleTrainer
+from models.End2End_v1 import End2End_v1
+from trainers.End2End_v1_Trainer import End2End_v1_Trainer
 from utils.config import process_config
 from utils.dirs import create_dirs
 from utils.logger import Logger
@@ -28,11 +28,11 @@ def main():
     data = DataGenerator(config)
     
     # create an instance of the model you want
-    model = ExampleModel(config)
+    model = End2End_v1(config)
     # create tensorboard logger
     logger = Logger(sess, config)
     # create trainer and pass all the previous components to it
-    trainer = ExampleTrainer(sess, model, data, config, logger)
+    trainer = End2End_v1_Trainer(sess, model, data, config, logger)
     #load model if exists
     model.load(sess)
     # here you train your model

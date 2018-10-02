@@ -1,0 +1,6 @@
+model_checkpoint_path: "N2N_v1-30"
+all_model_checkpoint_paths: "N2N_v1-10"
+all_model_checkpoint_paths: "N2N_v1-15"
+all_model_checkpoint_paths: "N2N_v1-20"
+all_model_checkpoint_paths: "N2N_v1-25"
+all_model_checkpoint_paths: "N2N_v1-30"

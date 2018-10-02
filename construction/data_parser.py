@@ -2,10 +2,13 @@ import numpy as np
 import pandas as pd
 import os
 import warnings
+import pickle
 from scipy.stats import gamma
 import datetime as dt
 from utils.demand_pkg import *
-
+from config import *
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
 
 class data_parser:
 
@@ -180,6 +183,43 @@ class data_parser:
         return X
 
 
+def dummy_cut(path, file_read, file_to_save):
+
+    o0 = pd.read_csv(path+file_read, 
+             parse_dates=['create_tm','complete_dt','dt','next_complete_dt'],
+             usecols=lambda col: col not in ['d_vlt']
+             )
+    # o0['IS_over_mean_56'] = (o0['initial_stock_overall'] / o0['mean_56']).replace(np.inf, 0).fillna(0)
+    # o0['overall_opt_order_for_opt'] = o0['overall_opt_order'].copy()
+    o1 = o0.copy()
+    o1.loc[:,'sku_id'] = o1['item_sku_id'].apply(lambda x: x.split('#')[0])
+    sku_set = o1.sku_id.unique()
+    sku_train, sku_test = train_test_split(sku_set, random_state=10, train_size=0.8, test_size=0.1)
+
+    o1[CAT_FEA] = o1[CAT_FEA].astype('category')
+    o_dummy = pd.get_dummies(o1[CAT_FEA])
+    len_dummy = o_dummy.shape[1]
+    o1 = pd.concat([o1, o_dummy], axis=1)
+    o2 = o1.drop(CAT_FEA, axis=1)
+
+    # CAT_FEA_HOT = list(o2.columns)[-len_dummy:]
+    # SCALE_FEA =  VLT_FEA + SF_FEA + MORE_FEA + IS_FEA + CAT_FEA_HOT
+    # CUT_FEA = VLT_FEA + SF_FEA + MORE_FEA
+
+    low_qtl = o1[CUT_FEA].quantile(0.01)
+    hgh_qtl = o1[CUT_FEA].quantile(0.98)
+    o2 = o2.copy()
+    o2.loc[:, CUT_FEA] = o1[CUT_FEA].clip(low_qtl, hgh_qtl, axis=1)
+
+    o2r = o2[o2[LABEL[0]]<=o2[LABEL[0]].quantile(0.99)]
+
+    df_train = o2r[o2r['sku_id'].isin(sku_train)]
+    df_test = o2r[o2r['sku_id'].isin(sku_test)]
+
+    with open(path+file_to_save, 'wb') as file_pkl:
+        pickle.dump([df_train, df_test], file_pkl, protocol=pickle.HIGHEST_PROTOCOL)
+
+
 
 raw_path = '../data/1320/'
 process_path = '../data/1320/'
@@ -190,16 +230,18 @@ vlt_file = 'vlt_2018_0708.csv'
 stock_file = 'stock.csv'
 feature_file = 'features_v1.csv'
 feature_file2 = 'features_v11.csv'
+feature_file3 = 'features_v12.csv'
+feature_file4 = 'df_train_test.pkl'
 
 quantile_list = [90]
 quantile_window_list = [7,14,28,56,112]
 mean_window_list = [3,7,14,28,56,112]
 pred_len_list = [31, 14, 7, 3, 1]
 
-o = data_parser()
-X = o.get_vlt_sales_feature(quantile_list, quantile_window_list, mean_window_list, pred_len_list,
-                  raw_path, process_path, output_path, vlt_file, filled_sale_file, feature_file)
-o.add_more_and_labels(X, raw_path, output_path, filled_sale_file, stock_file, feature_file2)
+# o = data_parser()
+# X = o.get_vlt_sales_feature(quantile_list, quantile_window_list, mean_window_list, pred_len_list,
+#                   raw_path, process_path, output_path, vlt_file, filled_sale_file, feature_file)
+# o.add_more_and_labels(X, raw_path, output_path, filled_sale_file, stock_file, feature_file2)
 
-
+dummy_cut(output_path, feature_file3, feature_file4)
 
