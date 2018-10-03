@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:04:49
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-02 12:55:52
+# @Last Modified at:   2018-10-03 11:09:44
 
 
 import tensorflow as tf
@@ -21,9 +21,9 @@ class Solver(object):
     def __init__(self, model, batch_size=64, pretrain_iter=20000, train_epoch=20, eval_set=100, 
                  data_dir='../data/', 
                  log_dir='../logs/',
-                 model_save_path='../logs/model', 
+                 model_save_path='../logs/', 
                  # pretrained_model='logs/model/svhn_model-20000', 
-                 test_model='../logs/model/N2N_v1-20'
+                 test_model='../logs/v1/checkpoint/v1-20'
                  ):
         
         self.model = model
@@ -138,9 +138,9 @@ class Solver(object):
                 summary_writer_test.add_summary(test_loss_summary, it)
                 print(epoch, train_err, test_err)
 
-                if epoch % 5 == 0:
-                    saver.save(sess, os.path.join(self.model_save_path, 'N2N_v1'), global_step=epoch)
-                    print('model/N2N_v1_%d saved' %(epoch))  
+                if epoch % 10 == 0:
+                    saver.save(sess, os.path.join(self.model_save_path+'checkpoint/', self.model.name), global_step=epoch)
+                    print('model/N2N_%s_%d saved' %(self.model.name, epoch))  
 
 
     def eval(self):
@@ -166,7 +166,7 @@ class Solver(object):
                                               })
 
             pred = pd.DataFrame(self.y_scaler.inverse_transform(pred), columns=['prediction']).fillna(0)
-
-        return pred
+        print(pred)
+        pred.to_csv(self.model_save_path+'pred.csv', index=False)
 
 
