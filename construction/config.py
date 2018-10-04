@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:42:42
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-03 16:55:24
+# @Last Modified at:   2018-10-03 18:05:16
 
 
 IDX = ['item_sku_id','sku_id']
@@ -74,9 +74,19 @@ CAT_FEA_HOT = ['item_third_cate_cd_1591',
              'int_org_num_316',
              'int_org_num_772']
 
-SCALE_FEA =  VLT_FEA + SF_FEA + MORE_FEA + IS_FEA + CAT_FEA_HOT
-CUT_FEA = VLT_FEA + SF_FEA + MORE_FEA
+TO_SCALE = [
+            # 'label_sf'
+            ]
+
 
 # LABEL = ['target_decision']    
 LABEL = ['demand_RV']    
+LABEL_vlt = ['vlt_actual']    
+LABEL_sf = ['label_sf']    
+
+
+SCALE_FEA =  VLT_FEA + SF_FEA + MORE_FEA + IS_FEA + CAT_FEA_HOT + TO_SCALE + LABEL_vlt + LABEL_sf
+CUT_FEA = VLT_FEA + SF_FEA + MORE_FEA
+MODEL_FEA = VLT_FEA + SF_FEA + MORE_FEA + IS_FEA + CAT_FEA_HOT
+
 

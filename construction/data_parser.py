@@ -191,6 +191,7 @@ def dummy_cut(path, file_read, file_to_save):
              )
     # o0['IS_over_mean_56'] = (o0['initial_stock_overall'] / o0['mean_56']).replace(np.inf, 0).fillna(0)
     # o0['overall_opt_order_for_opt'] = o0['overall_opt_order'].copy()
+    o0['label_sf'] = o0['demand_RV'] / o0['vlt_actual']
     o1 = o0.copy()
     o1.loc[:,'sku_id'] = o1['item_sku_id'].apply(lambda x: x.split('#')[0])
     sku_set = o1.sku_id.unique()

@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:04:49
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-03 11:09:44
+# @Last Modified at:   2018-10-03 17:59:38
 
 
 import tensorflow as tf
@@ -59,6 +59,10 @@ class Solver(object):
         self.y_test = pd.DataFrame(self.y_scaler.transform(y_test_ns), columns=y_test_ns.columns)
         # pd.DataFrame(min_max_scaler.inverse_transform(y_test), columns=y_test.columns)
 
+        pd_scaler = pd.concat([pd.DataFrame([self.y_scaler.data_min_, self.y_scaler.scale_], columns=y_train_ns.columns),
+                    pd.DataFrame([self.X_scaler.data_min_, self.X_scaler.scale_], columns=X_train_ns.columns)], axis=1)
+        pd_scaler.to_csv(self.data_dir+'1320_feature/scaler.csv', index=False)
+
 
 
     def train(self):
@@ -93,14 +97,20 @@ class Solver(object):
                                                  model.x_oth: self.X_train[MORE_FEA].values, 
                                                  model.x_cat: self.X_train[CAT_FEA_HOT].values, 
                                                  model.x_is: self.X_train[IS_FEA].values, 
-                                                 model.y: self.y_train.values})
+                                                 model.y: self.y_train.values,
+                                                 model.y_vlt: self.X_train[LABEL_vlt].values,
+                                                 model.y_sf: self.X_train[LABEL_sf].values
+                                                 })
             test_err, test_loss_summary = sess.run([model.loss, model.summary_op_trg], 
                                                 feed_dict={model.x_vlt: self.X_test[VLT_FEA].values, 
                                                  model.x_sf: self.X_test[SF_FEA].values, 
                                                  model.x_oth: self.X_test[MORE_FEA].values, 
                                                  model.x_cat: self.X_test[CAT_FEA_HOT].values, 
                                                  model.x_is: self.X_test[IS_FEA].values, 
-                                                 model.y: self.y_test.values})
+                                                 model.y: self.y_test.values,
+                                                 model.y_vlt: self.X_test[LABEL_vlt].values,
+                                                 model.y_sf: self.X_test[LABEL_sf].values
+                                                 })
             summary_writer_train.add_summary(train_loss_summary, 0)
             summary_writer_test.add_summary(test_loss_summary, 0)
             print(0, train_err, test_err)
@@ -120,7 +130,10 @@ class Solver(object):
                                  model.x_oth: batch_data[MORE_FEA].values,
                                  model.x_cat: batch_data[CAT_FEA_HOT].values,
                                  model.x_is: batch_data[IS_FEA].values,
-                                 model.y: batch_labels}
+                                 model.y: batch_labels,
+                                 model.y_vlt: batch_data[LABEL_vlt].values,
+                                 model.y_sf: batch_data[LABEL_sf].values                                 
+                                 }
                     _, c_loss, train_loss_summary = sess.run([model.train_step, model.loss, model.summary_op_trg], feed_dict)
                     train_err += c_loss*bs
                     it += 1
@@ -132,7 +145,10 @@ class Solver(object):
                                                      model.x_oth: self.X_test[MORE_FEA].values, 
                                                      model.x_cat: self.X_test[CAT_FEA_HOT].values, 
                                                      model.x_is: self.X_test[IS_FEA].values, 
-                                                     model.y: self.y_test.values})
+                                                     model.y: self.y_test.values,
+                                                     model.y_vlt: self.X_test[LABEL_vlt].values,
+                                                     model.y_sf: self.X_test[LABEL_sf].values
+                                                     })
 
                 train_err /= self.n_train
                 summary_writer_test.add_summary(test_loss_summary, it)
