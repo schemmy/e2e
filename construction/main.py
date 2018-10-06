@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:30:40
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-04 16:24:13
+# @Last Modified at:   2018-10-04 16:32:39
 
 
 import tensorflow as tf
@@ -20,7 +20,7 @@ FLAGS = flags.FLAGS
 def main(_):
 
     out_dir = '../logs/'
-    model = End2End_v4(mode=FLAGS.mode, learning_rate=0.0001)
+    model = End2End_v5(mode=FLAGS.mode, learning_rate=0.0001)
     out_dir = out_dir + model.name + '/'
     test_path = out_dir+'checkpoint/'+model.name+'-20'
     solver = Solver(model, batch_size=64, pretrain_iter=20000, train_epoch=20, eval_set=100, 

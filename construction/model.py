@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 15:45:51
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-04 11:19:51
+# @Last Modified at:   2018-10-04 16:32:33
 # Template:
 # https://github.com/yunjey/domain-transfer-network/blob/master/model.py
 
@@ -454,7 +454,7 @@ class End2End_v5(object):
     def __init__(self, mode='train', learning_rate=0.0001):
         self.mode = mode
         self.learning_rate = learning_rate
-        self.name='v4'
+        self.name='v5'
 
 
     def build_model(self):
