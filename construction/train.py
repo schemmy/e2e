@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:04:49
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-03 17:59:38
+# @Last Modified at:   2018-10-09 11:22:36
 
 
 import tensorflow as tf
@@ -186,3 +186,10 @@ class Solver(object):
         pred.to_csv(self.model_save_path+'pred.csv', index=False)
 
 
+    def train_tc(self):
+        
+        model = self.model
+        model.build_model()
+
+        print ('Reading data..!')
+        self.read_data()

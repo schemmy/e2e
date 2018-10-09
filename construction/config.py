@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:42:42
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-03 18:05:16
+# @Last Modified at:   2018-10-09 15:28:10
 
 
 IDX = ['item_sku_id','sku_id']
@@ -57,7 +57,7 @@ MORE_FEA =[
             ]
 
 IS_FEA = [
-#            'initial_stock', 
+           'initial_stock', 
 #            'IS_over_mean_56'
         ]
     
