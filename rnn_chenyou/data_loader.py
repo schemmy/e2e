@@ -7,11 +7,14 @@ import numpy as np
 #from PIL import Image
 import random
 import json
+from sklearn.model_selection import train_test_split
 
 class GEFPriceDataset(data.Dataset):
 
-    def __init__(self, phase, data_json, input_dim, pred_long, hist_long, total_long, test_sample=12):
-        self.price_data = data_json
+    def __init__(self, phase, df, input_dim, pred_long, hist_long, total_long, test_sample=12):
+        df['Dec_y'] = df['Dec_y'].apply(lambda x:  [x[0]+[x[0][-1]]*(31-len(x[0]))] 
+                                                if len(x[0])<31 else x)
+        self.data = df
         self.pred_long = pred_long
         self.hist_long = hist_long
         self.total_long = total_long
@@ -21,55 +24,30 @@ class GEFPriceDataset(data.Dataset):
 
         # get 12 different forecast creation dates
         #if phase=='test':
-        ll = len(self.price_data) - total_long # hist_long is 7*24
-        assert ll%24==0
-        numL = ll/24
-        print(numL)
-        numl0 = (numL-7) // test_sample
-        
+        sku_set = df.sku_id.unique()
+        sku_train, sku_test = train_test_split(sku_set, random_state=10, train_size=0.8, test_size=0.2)
 
-        tmp1 = range(7,numL)
-        tmp2 = []
-        tmp3 = []
-        for k in range(1,self.test_sample+1):
-            tt = k*numl0
-            for p in range(7):
-                tmp2.append(tt+p)
-                
-                tmp3.append(tt+p)
-                tmp3.append(tt-p)
-                
-        tmp0 = set(tmp1)-set(tmp3)
-        
-        #print(len(tmp0),len(tmp2))
-        self.train_indices = [a*24+1 for a in tmp0]
-        self.test_indices = [a*24+1 for a in tmp2]
-        
-        
-        #print self.train_indices,'--train'
-        #print
-        #print self.test_indices,'--test'
+        self.train_indices = list(df[df['sku_id'].isin(sku_train)].index)
+        self.test_indices = list(df[df['sku_id'].isin(sku_test)].index)
 
-        print(len(self.price_data),len(self.train_indices),len(self.test_indices))
+        self.train_len = len(self.train_indices)
+        self.test_len = len(self.test_indices)
+
+        print(self.train_len, self.test_len)
                     
     def __getitem__(self, idx):
-        """Returns one data pair (image and caption)."""
         
         if self.phase=='test':
-            index = self.test_indices[idx] - self.hist_long
+            index = self.test_indices[idx]
         else:
-            index = self.train_indices[idx] - self.hist_long
+            index = self.train_indices[idx]
 
-        input = torch.zeros((1,self.total_long,self.input_dim), dtype=torch.float)
-        target = torch.zeros((1,self.total_long), dtype=torch.float)
+        Enc_input = torch.FloatTensor(self.data.loc[index, 'Enc_X']).view(self.hist_long,self.input_dim)
+        Enc_target = torch.FloatTensor(self.data.loc[index, 'Enc_y']).view(self.hist_long)
+        Dec_input = torch.FloatTensor(self.data.loc[index, 'Dec_X']).view(self.pred_long,self.input_dim)
+        Dec_target = torch.FloatTensor(self.data.loc[index, 'Dec_y']).view(self.pred_long)
 
-        for k in xrange(self.total_long):
-            data = self.price_data[index+k]
-            input[0,k,:] = torch.tensor(np.array(data[1:1+self.input_dim]))
-            target[0,k] = data[self.input_dim+1]
-        
-        #print(target)
-        return input[0,:self.hist_long,:], target[0,:self.hist_long], input[0,self.hist_long:,:], target[0,self.hist_long:]
+        return Enc_input, Enc_target, Dec_input, Dec_target
         
     def __len__(self):
         if self.phase=='train':

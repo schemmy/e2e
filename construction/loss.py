@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-09 11:00:00
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-09 20:22:30
+# @Last Modified at:   2018-10-10 10:16:51
 
 
 import torch
@@ -103,7 +103,6 @@ class E2E_Dataset(data.Dataset):
             g = torch.from_numpy(self.df_label_vlt[index]).float()
             h = torch.from_numpy(self.df_label_sf[index]).float()
 
-            
         return (a,b,c,d,e,f,g,h)
         
 
@@ -116,7 +115,7 @@ class E2E_Dataset(data.Dataset):
 
 
 
-def get_loader(phase, batch_size, gpu, device, shuffle, num_workers):
+def get_loader(phase, batch_size, gpu, device, shuffle, num_workers=0):
 
     dset = E2E_Dataset(phase, gpu, device)
     # if phase == 'test':
@@ -125,6 +124,6 @@ def get_loader(phase, batch_size, gpu, device, shuffle, num_workers):
                                               batch_size=batch_size,
                                               shuffle=shuffle,
                                               num_workers=0,
-                                              pin_memory=True
+                                              # pin_memory=True
                                               )
     return data_loader

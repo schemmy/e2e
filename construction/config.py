@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:42:42
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-09 15:28:10
+# @Last Modified at:   2018-10-10 14:07:08
 
 
 IDX = ['item_sku_id','sku_id']
@@ -77,6 +77,8 @@ CAT_FEA_HOT = ['item_third_cate_cd_1591',
 TO_SCALE = [
             # 'label_sf'
             ]
+
+SEQ2SEQ = ['Enc_X', 'Enc_y', 'Dec_X', 'Dec_y']
 
 
 # LABEL = ['target_decision']    

@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:30:40
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-09 20:21:32
+# @Last Modified at:   2018-10-10 10:28:32
 
 
 import tensorflow as tf
@@ -64,8 +64,8 @@ def main_tc(args):
         model.to(device)
 
 
-    data_loader = get_loader('train', args.bs, args.gpu, device, shuffle=True, num_workers=args.num_workers)
-    test_loader = get_loader('test', args.bs, args.gpu, device, shuffle=False, num_workers=1)
+    data_loader = get_loader('train', args.bs, args.gpu, device, shuffle=True)
+    test_loader = get_loader('test', args.bs, args.gpu, device, shuffle=False)
 
     e2e_loss = E2E_loss()
     params = list(model.parameters())
@@ -99,7 +99,7 @@ def main_tc(args):
                 test_loss += loss.item()
 
             print ('Epoch %d, time %s, train loss %.5f, test loss %.5f' 
-                    %(epoch, run, train_loss/len(data_loader), 0/len(test_loader) ))
+                    %(epoch, run, train_loss/len(data_loader), test_loss/len(test_loader) ))
 
     else:
         model.load_state_dict(torch.load('../logs/xx.pkl'))
@@ -123,7 +123,6 @@ if __name__ == '__main__':
     parser.add_argument('--test', type=int, default=0)
     parser.add_argument('--num_epochs', type=int, default=20)
     parser.add_argument('--bs', type=int, default=128)
-    parser.add_argument('--num_workers', type=int, default=1)
     parser.add_argument('--learning_rate', type=float, default=0.0001)
     parser.add_argument('--momentum', default=0.9, type=float,  help='momentum')
     parser.add_argument('--weight_decay', default=1e-4, type=float, help='weight decay (default: 1e-4)')

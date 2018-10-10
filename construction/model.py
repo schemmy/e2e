@@ -2,12 +2,13 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 15:45:51
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-09 16:41:40
+# @Last Modified at:   2018-10-10 11:26:48
 # Template:
 # https://github.com/yunjey/domain-transfer-network/blob/master/model.py
 
 import tensorflow as tf
 from config import *
+from model_s2s import *
 import pandas as pd
 import torch
 import torch.nn as nn
@@ -16,6 +17,7 @@ import torchvision.datasets as dset
 import torchvision.transforms as transforms
 import torch.nn.functional as F
 import torch.optim as optim
+
 
 pd_scaler = pd.read_csv('../data/1320_feature/scaler.csv')
 
@@ -613,6 +615,86 @@ class End2End_v5(object):
 
 
 class End2End_v5_tc(nn.Module):
+
+
+    def __init__(self):
+        
+        super(End2End_v5_tc, self).__init__()
+        self.name='v5_tc'
+
+        self.cat_dim = len(CAT_FEA_HOT)
+        self.vlt_dim = len(VLT_FEA)
+        self.sf_dim = len(SF_FEA)
+        self.oth_dim = len(MORE_FEA)
+        self.is_dim = len(IS_FEA)
+
+        self.input_dim =  self.vlt_dim + self.sf_dim + self.oth_dim + self.is_dim +self.cat_dim
+        self.hidden_dim = [[20, 20], [5, 5], [1, 1], 3]
+        self.output_dim = 1
+        self.q = 0.9
+
+        self.fc_vlt_1 = nn.Linear(self.vlt_dim+self.cat_dim, self.hidden_dim[0][0]) 
+        self.fc_vlt_2 = nn.Linear(self.hidden_dim[0][0], self.hidden_dim[1][0])  
+        self.fc_vlt_3 = nn.Linear(self.hidden_dim[1][0], self.hidden_dim[2][0])  
+
+        self.fc_sf_1 = nn.Linear(self.sf_dim+self.cat_dim, self.hidden_dim[0][1]) 
+        self.fc_sf_2 = nn.Linear(self.hidden_dim[0][1], self.hidden_dim[1][1]) 
+        self.fc_sf_3 = nn.Linear(self.hidden_dim[1][1], self.hidden_dim[2][1]) 
+
+        self.fc_3 = nn.Linear(self.hidden_dim[1][0]+self.hidden_dim[1][1]+self.oth_dim+self.is_dim, 
+                                            self.hidden_dim[3])
+        self.fc_4 = nn.Linear(self.hidden_dim[3], self.output_dim)
+
+
+    def init_weights(self):
+        """Initialize weights."""
+        self.fc_vlt_1.weight.data.normal_(0.0, 0.01)
+        self.fc_vlt_1.bias.data.fill_(0)
+        self.fc_vlt_2.weight.data.normal_(0.0, 0.01)
+        self.fc_vlt_2.bias.data.fill_(0)
+        self.fc_vlt_3.weight.data.normal_(0.0, 0.01)
+        self.fc_vlt_3.bias.data.fill_(0)
+
+        self.fc_sf_1.weight.data.normal_(0.0, 0.01)
+        self.fc_sf_1.bias.data.fill_(0)
+        self.fc_sf_2.weight.data.normal_(0.0, 0.01)
+        self.fc_sf_2.bias.data.fill_(0)
+        self.fc_sf_3.weight.data.normal_(0.0, 0.01)
+        self.fc_sf_3.bias.data.fill_(0)
+
+        self.fc_3.weight.data.normal_(0.0, 0.01)
+        self.fc_3.bias.data.fill_(0)
+        self.fc_4.weight.data.normal_(0.0, 0.01)
+        self.fc_4.bias.data.fill_(0)
+
+
+    def forward(self, x_vlt, x_sf, x_cat, x_oth, x_is):
+
+        x1 = self.fc_vlt_1(torch.cat([x_vlt, x_cat], 1))
+        x1 = F.relu(x1)
+        x1 = self.fc_vlt_2(x1)
+        x1 = F.relu(x1)
+        o_vlt = self.fc_vlt_3(x1)
+
+        x2 = self.fc_sf_1(torch.cat([x_sf, x_cat], 1))
+        x2 = F.relu(x2)
+        x2 = self.fc_sf_2(x2)
+        x2 = F.relu(x2)
+        o_sf = self.fc_sf_3(x2)
+
+        x = self.fc_3(torch.cat([x1, x2, x_oth, x_is],1))
+        x = F.relu(x)
+        x = self.fc_4(x)
+
+        return x, o_vlt, o_sf
+
+
+
+
+
+
+
+class End2End_v6_tc(nn.Module):
 
 
     def __init__(self):

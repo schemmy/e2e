@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import os
-# import pickle
+import pickle
 # from PIL import Image
 # from torch.nn.utils.rnn import pack_padded_sequence
 import json
@@ -42,17 +42,16 @@ def main(args):
     ################
     args.hidden_size = 30   # see paper, LSTM size
     args.context_size = 5   # see paper, 3.2, context size
-    args.pred_long = 24     # see paper, the forecast is future 24 hours
-    args.hist_long = 168    # see paper, the history is up to 168 hours
+    args.pred_long = 31     # see paper, the forecast is future 24 hours
+    args.hist_long = 51    # see paper, the history is up to 168 hours
     args.total_long = args.pred_long + args.hist_long
     args.input_dim = 2    # two horizons
 
     quantiles = [0.01, 0.25, 0.5, 0.75, 0.99]    
     num_quantiles = len(quantiles)
     
-    with open(args.data_path,'r') as f1:
-        data_json = json.load(f1)
-
+    with open('../data/1320_feature/df_s2s.pkl', 'rb') as fp:
+        data_json = pickle.load(fp)
 
     # Build data loader
     data_loader = get_loader_price('train', data_json, args.input_dim, args.pred_long, args.hist_long, args.total_long,
@@ -86,7 +85,8 @@ def main(args):
         
         if args.test==0:      
             for i, (input_hist, target_hist, input_pred, target_pred) in enumerate(data_loader):
-            
+                # print(input_hist.shape, target_hist.shape, input_pred.shape, target_pred.shape)
+   
 #                 input_hist = input_hist.cuda()
 #                 target_hist = target_hist.cuda()
 #                 input_pred = input_pred.cuda()
@@ -105,66 +105,65 @@ def main(args):
                 loss.backward()
                 optimizer.step()
             
-                if i%20==0:
+                if i%100==0:
                     print('Epoch %d Iter %d/%d, loss %.3f' % (epoch,i,len(data_loader),loss.item()))
             
             
-        rnn.eval()
-        with torch.no_grad():
+#         rnn.eval()
+#         with torch.no_grad():
             
-            loss = torch.tensor(0.0)#.cuda()
-            #loss_each = [torch.tensor(0.0).cuda() for k in range(num_quantiles)]
-            loss_each = [torch.tensor(0.0) for k in range(num_quantiles)]
+#             loss = torch.tensor(0.0)#.cuda()
+#             #loss_each = [torch.tensor(0.0).cuda() for k in range(num_quantiles)]
+#             loss_each = [torch.tensor(0.0) for k in range(num_quantiles)]
             
-            for it, (input_hist, target_hist, input_pred, target_pred) in enumerate(test_loader):
+#             for it, (input_hist, target_hist, input_pred, target_pred) in enumerate(test_loader):
             
-#                 input_hist = input_hist.cuda()
-#                 target_hist = target_hist.cuda()
-#                 input_pred = input_pred.cuda()
-#                 target_pred = target_pred.cuda()
+# #                 input_hist = input_hist.cuda()
+# #                 target_hist = target_hist.cuda()
+# #                 input_pred = input_pred.cuda()
+# #                 target_pred = target_pred.cuda()
     
-                # Forward, Backward and Optimize
-                outputs, targets = rnn(input_hist, target_hist, input_pred, target_pred)
+#                 # Forward, Backward and Optimize
+#                 outputs, targets = rnn(input_hist, target_hist, input_pred, target_pred)
                 
-                cnt = 0
-                for k in range(num_quantiles-1):
-                    xs = []
-                    t0=quantiles[k]
-                    t0+=0.01
-                    while t0<quantiles[k+1]:
-                        t0 = round(t0,2)
-                        xs.append(t0)
-                        t0+=0.01
+#                 cnt = 0
+#                 for k in range(num_quantiles-1):
+#                     xs = []
+#                     t0=quantiles[k]
+#                     t0+=0.01
+#                     while t0<quantiles[k+1]:
+#                         t0 = round(t0,2)
+#                         xs.append(t0)
+#                         t0+=0.01
                     
-                    #print xs      
-                    ys = linear_interpolation(quantiles[k],outputs[:,:,k],quantiles[k+1],outputs[:,:,k+1],xs,use_sqrt=False)
-                    #print(ys[0].size())
-                    for x,y in zip(xs,ys):
-                        loss += quantile_loss(y, targets, x)
-                        cnt+=1
+#                     #print xs      
+#                     ys = linear_interpolation(quantiles[k],outputs[:,:,k],quantiles[k+1],outputs[:,:,k+1],xs,use_sqrt=False)
+#                     #print(ys[0].size())
+#                     for x,y in zip(xs,ys):
+#                         loss += quantile_loss(y, targets, x)
+#                         cnt+=1
                 
                 
-                for k in range(num_quantiles):
-                    t = quantile_loss(outputs[:,:,k], targets, quantiles[k])
-                    loss_each[k] += t
-                    loss += t
-                    cnt +=1
+#                 for k in range(num_quantiles):
+#                     t = quantile_loss(outputs[:,:,k], targets, quantiles[k])
+#                     loss_each[k] += t
+#                     loss += t
+#                     cnt +=1
                 
-                #print(cnt)
-                #assert cnt==99
+#                 #print(cnt)
+#                 #assert cnt==99
             
             
             
-            loss_each_val = []
-            for k in range(num_quantiles):
-                t = loss_each[k] / len(test_loader)
-                loss_each_val.append(t.item())
+#             loss_each_val = []
+#             for k in range(num_quantiles):
+#                 t = loss_each[k] / len(test_loader)
+#                 loss_each_val.append(t.item())
                 
-            loss_val = loss.item() / cnt / len(test_loader)
+#             loss_val = loss.item() / cnt / len(test_loader)
         
-            print('[Test] Epoch %d test loss %.3f' % (epoch, loss_val))
-            print ' '.join([str(round(b,2)) for b in loss_each_val]), round(np.mean(loss_each_val),2)
-            torch.save(rnn.state_dict(), os.path.join(args.model_path, 'qr_%d_l%.3f.pkl' %(epoch+1,loss_val)))
+#             print('[Test] Epoch %d test loss %.3f' % (epoch, loss_val))
+#             torch.save(rnn.state_dict(), os.path.join(args.model_path, 'qr_%d_l%.3f.pkl' %(epoch+1,loss_val)))
 
         rnn.train()   
            
@@ -185,11 +184,10 @@ if __name__ == '__main__':
                         help='step size for saving trained models')
     parser.add_argument('--test', type=int, default=0)
     parser.add_argument('--num_epochs', type=int, default=300)
-    parser.add_argument('--batch_size', type=int, default=8)
+    parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--num_workers', type=int, default=2)
     parser.add_argument('--learning_rate', type=float, default=0.001)
     parser.add_argument('--momentum', default=0.9, type=float,  help='momentum')
     parser.add_argument('--weight_decay', default=1e-4, type=float, help='weight decay (default: 1e-4)')
     args = parser.parse_args()
-    print(args)
     main(args)

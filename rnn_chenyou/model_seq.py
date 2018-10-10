@@ -52,7 +52,7 @@ class Decoder_MLP(nn.Module):
         #print('ca size ',ca.size())
         
         results = []        
-        for k in xrange(self.pred_long):
+        for k in range(self.pred_long):
             xk = x_future[:,k,:]
             ck = context_vectors[:, k*self.context_size:(k+1)*self.context_size]
             cak = torch.cat((ck,ca,xk),dim=1)
