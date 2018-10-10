@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-09 11:00:00
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-09 16:37:29
+# @Last Modified at:   2018-10-09 20:22:30
 
 
 import torch
@@ -42,10 +42,12 @@ class E2E_loss(nn.Module):
 
 class E2E_Dataset(data.Dataset):
 
-    def __init__(self, phase, data_dir='../data/'):
+    def __init__(self, phase, gpu, device, data_dir='../data/'):
 
         self.data_dir = data_dir
         self.phase = phase
+        self.gpu = gpu
+        self.device = device
 
         with open(self.data_dir+'1320_feature/df_e2e.pkl', 'rb') as fp:
             o2 = pickle.load(fp)
@@ -61,29 +63,50 @@ class E2E_Dataset(data.Dataset):
         self.test_len = len(self.test_indices)
 
         self.df = o2[SCALE_FEA+LABEL].astype(float)
+
+        self.df_vlt = self.df[VLT_FEA].values
+        self.df_sf = self.df[SF_FEA].values
+        self.df_cat = self.df[CAT_FEA_HOT].values
+        self.df_oth = self.df[MORE_FEA].values
+        self.df_is = self.df[IS_FEA].values
+        self.df_label = self.df[LABEL].values
+        self.df_label_vlt = self.df[LABEL_vlt].values
+        self.df_label_sf = self.df[LABEL_sf].values
+
         print(self.train_len, self.test_len)
                     
 
     def __getitem__(self, idx):
 
-        
         if self.phase=='test':
             index = self.test_indices[idx]
         else:
             index = self.train_indices[idx]
 
-        X = self.df.iloc[index]
+        # Need optimize
+        if self.gpu:
+            a = torch.from_numpy(self.df_vlt[index]).float().to(self.device)
+            b = torch.from_numpy(self.df_sf[index]).float().to(self.device)
+            c = torch.from_numpy(self.df_cat[index]).float().to(self.device)
+            d = torch.from_numpy(self.df_oth[index]).float().to(self.device)
+            e = torch.from_numpy(self.df_is[index]).float().to(self.device)
+            f = torch.from_numpy(self.df_label[index]).float().to(self.device)
+            g = torch.from_numpy(self.df_label_vlt[index]).float().to(self.device)
+            h = torch.from_numpy(self.df_label_sf[index]).float().to(self.device)
+        else:
+            a = torch.from_numpy(self.df_vlt[index]).float()
+            b = torch.from_numpy(self.df_sf[index]).float()
+            c = torch.from_numpy(self.df_cat[index]).float()
+            d = torch.from_numpy(self.df_oth[index]).float()
+            e = torch.from_numpy(self.df_is[index]).float()
+            f = torch.from_numpy(self.df_label[index]).float()
+            g = torch.from_numpy(self.df_label_vlt[index]).float()
+            h = torch.from_numpy(self.df_label_sf[index]).float()
 
-        a = torch.from_numpy(X[VLT_FEA].values).float()
-        b = torch.from_numpy(X[SF_FEA].values).float()
-        c = torch.from_numpy(X[CAT_FEA_HOT].values).float()
-        d = torch.from_numpy(X[MORE_FEA].values).float()
-        e = torch.from_numpy(X[IS_FEA].values).float()
-        f = torch.from_numpy(X[LABEL].values).float()
-        g = torch.from_numpy(X[LABEL_vlt].values).float()
-        h = torch.from_numpy(X[LABEL_sf].values).float()
+            
         return (a,b,c,d,e,f,g,h)
         
+
     def __len__(self):
 
         if self.phase=='train':
@@ -93,13 +116,15 @@ class E2E_Dataset(data.Dataset):
 
 
 
-def get_loader(phase, batch_size, shuffle, num_workers):
+def get_loader(phase, batch_size, gpu, device, shuffle, num_workers):
 
-    dset = E2E_Dataset(phase)
+    dset = E2E_Dataset(phase, gpu, device)
+    # if phase == 'test':
+        # batch_size = dset.test_len
     data_loader = torch.utils.data.DataLoader(dataset=dset,
                                               batch_size=batch_size,
                                               shuffle=shuffle,
-                                              num_workers=num_workers,
+                                              num_workers=0,
                                               pin_memory=True
                                               )
     return data_loader

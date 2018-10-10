@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:04:49
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-09 11:22:36
+# @Last Modified at:   2018-10-09 17:07:37
 
 
 import tensorflow as tf
@@ -63,7 +63,7 @@ class Solver(object):
                     pd.DataFrame([self.X_scaler.data_min_, self.X_scaler.scale_], columns=X_train_ns.columns)], axis=1)
         pd_scaler.to_csv(self.data_dir+'1320_feature/scaler.csv', index=False)
 
-
+        print(self.n_train, self.n_test)
 
     def train(self):
 
@@ -187,7 +187,7 @@ class Solver(object):
 
 
     def train_tc(self):
-        
+
         model = self.model
         model.build_model()
 
