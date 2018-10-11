@@ -231,6 +231,7 @@ def add_time_series(lw, rw, path, process_path, sale_file, file_read, file_to_sa
 
     df_sl = pd.read_csv(process_path+sale_file, index_col=0)
     df_sl.rename(columns=lambda x: (dt.datetime(2016,1,1) + dt.timedelta(days=int(x)-730)).date(), inplace=True)
+    # df_sl = df_sl.pct_change(axis='columns').replace(np.inf, 2.0).fillna(0)
 
     o0['Enc_X'] = o0.apply(lambda x: [
                         df_sl.loc[x['item_sku_id'], 
@@ -262,6 +263,8 @@ def add_time_series(lw, rw, path, process_path, sale_file, file_read, file_to_sa
                                  x['create_tm'].date():x['create_tm'].date()+dt.timedelta(days=rw)
                                 ].values.tolist(),
                        ], axis=1)
+    o0['Dec_y'] = o0['Dec_y'].apply(lambda x:  [x[0]+[x[0][-1]]*(rw+1-len(x[0]))] 
+                                                if len(x[0])<rw+1 else x)
 
     with open(path+file_to_save, 'wb') as file_pkl:
         pickle.dump(o0, file_pkl, protocol=pickle.HIGHEST_PROTOCOL)
@@ -342,6 +345,6 @@ pred_len_list = [31,14,7,3,1]
 #                   raw_path, process_path, output_path, vlt_file, filled_sale_file, feature_file)
 # o.add_more_and_labels(X, raw_path, output_path, filled_sale_file, stock_file, feature_file2)
 
-# add_time_series(50, 30, output_path, process_path, filled_sale_file, feature_file3, feature_file4)
+add_time_series(50, 30, output_path, process_path, filled_sale_file, feature_file3, feature_file4)
 dummy_cut_tc(output_path, feature_file4, 'df_s2s.pkl', 'df_e2e.pkl')
 

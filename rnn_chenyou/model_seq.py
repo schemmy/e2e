@@ -45,7 +45,7 @@ class Decoder_MLP(nn.Module):
 
         # global MLP
         hidden_future_concat = torch.cat((hidden_states, x_future_1),dim=1)
-        context_vectors = F.sigmoid( self.global_mlp(hidden_future_concat) )
+        context_vectors = torch.sigmoid( self.global_mlp(hidden_future_concat) )
         #print('context_vectors size ',context_vectors.size())
 
         ca = context_vectors[:, self.context_size*self.pred_long:]
@@ -112,8 +112,8 @@ class MQ_RNN(nn.Module):
         assert x_seq_pred.size(1) == self.pred_long
         assert y_seq_pred.size(1) == self.pred_long
 
-        x_feat_hist = F.tanh(self.linear_encoder(x_seq_hist))
-        x_feat_pred = F.tanh(self.linear_encoder(x_seq_pred))
+        x_feat_hist = torch.tanh(self.linear_encoder(x_seq_hist))
+        x_feat_pred = torch.tanh(self.linear_encoder(x_seq_pred))
         
         
         self.lstm.flatten_parameters()
@@ -201,8 +201,8 @@ class CONV_RNN(nn.Module):
         assert y_seq_pred.size(1) == self.pred_long
 
 
-        x_feat_hist = F.tanh(self.linear_encoder(x_seq_hist))
-        x_feat_pred = F.tanh(self.linear_encoder(x_seq_pred))
+        x_feat_hist = torch.tanh(self.linear_encoder(x_seq_hist))
+        x_feat_pred = torch.tanh(self.linear_encoder(x_seq_pred))
         
         
         y_seq_hist_1 = y_seq_hist.view(y_seq_hist.size(0), y_seq_hist.size(1), 1)
@@ -325,8 +325,8 @@ class CONV_RNN_MULTI(nn.Module):
         assert y_seq_pred.size(1) == self.pred_long
 
 
-        x_feat_hist = F.tanh(self.linear_encoder(x_seq_hist))
-        x_feat_pred = F.tanh(self.linear_encoder(x_seq_pred))
+        x_feat_hist = torch.tanh(self.linear_encoder(x_seq_hist))
+        x_feat_pred = torch.tanh(self.linear_encoder(x_seq_pred))
         
         
         y_seq_hist_1 = y_seq_hist.view(y_seq_hist.size(0), y_seq_hist.size(1), 1)

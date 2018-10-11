@@ -10,6 +10,9 @@ import json
 from data_loader import get_loader_price
 from model_seq import MQ_RNN
 from quantile_loss import QauntileLoss, QauntileLossNew
+from torch.multiprocessing import Pool
+torch.multiprocessing.set_start_method('spawn', force=True)
+
 #from misc import AverageMeter
 #from tensorboardX import SummaryWriter
 
@@ -37,6 +40,8 @@ def main(args):
     if not os.path.exists(args.model_path):
         os.makedirs(args.model_path)
     
+
+
     ################
     # set parameters
     ################
@@ -53,13 +58,7 @@ def main(args):
     with open('../data/1320_feature/df_s2s.pkl', 'rb') as fp:
         data_json = pickle.load(fp)
 
-    # Build data loader
-    data_loader = get_loader_price('train', data_json, args.input_dim, args.pred_long, args.hist_long, args.total_long,
-                             args.batch_size, shuffle=True, num_workers=args.num_workers)
 
-    test_loader = get_loader_price('test', data_json, args.input_dim, args.pred_long, args.hist_long, args.total_long,
-                             1, shuffle=False, num_workers=1)
-    
     #writer = SummaryWriter()
 
                                  
@@ -67,7 +66,21 @@ def main(args):
 #     rnn = rnn.cuda()
 
     # Loss 
-    quantile_loss = QauntileLossNew(y_norm=False, size_average=True, use_square=False).cuda()
+    quantile_loss = QauntileLossNew(y_norm=False, size_average=True, use_square=False)
+
+    if args.gpu:
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        print(device)
+        rnn.to(device)
+        quantile_loss.to(device)
+
+
+    # Build data loader
+    data_loader = get_loader_price('train', data_json, args.input_dim, args.pred_long, args.hist_long, args.total_long,
+                             args.batch_size, args.gpu, device, shuffle=True, num_workers=args.num_workers)
+
+    test_loader = get_loader_price('test', data_json, args.input_dim, args.pred_long, args.hist_long, args.total_long,
+                             args.batch_size, args.gpu, device, shuffle=False, num_workers=1)
     
     # Optimizer
     params = list(rnn.parameters())
@@ -76,13 +89,13 @@ def main(args):
     # Train the Models
     total_step = len(data_loader)
 
-    if args.test==1:
-        rnn.load_state_dict(torch.load('./models_price_convrnn/qr_16_l2.236.pkl'))
+    # if args.test==1:
+    rnn.load_state_dict(torch.load('../logs/torch/mqrnn_110.pkl'))
 
 
-
-    for epoch in range(args.num_epochs):
+    for epoch in range(110, args.num_epochs):
         
+        ac_l = 0
         if args.test==0:      
             for i, (input_hist, target_hist, input_pred, target_pred) in enumerate(data_loader):
                 # print(input_hist.shape, target_hist.shape, input_pred.shape, target_pred.shape)
@@ -94,8 +107,11 @@ def main(args):
             
                 # Forward, Backward and Optimize
                 outputs, targets = rnn(input_hist, target_hist, input_pred, target_pred)
-                loss = torch.tensor(0.0)#.cuda()
-            
+                loss = torch.tensor(0.0).cuda()
+                if args.gpu:
+                    loss.to(device)
+
+                # print(outputs.type(), targets.type(), loss.type())
                 for k in range(num_quantiles):
                     loss += quantile_loss(outputs[:,:,k], targets, quantiles[k])
                     #loss_inter += quantile_loss(outputs_inter[:,:,k], targets_inter,  quantiles[k])
@@ -104,11 +120,39 @@ def main(args):
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
+                
+                ac_l += loss.item()
+                if (i+1)%100==0:
+                    print('Epoch %d Iter %d/%d, loss %.3f' % (epoch,i,len(data_loader),ac_l/100))
+                    ac_l = 0.
             
-                if i%100==0:
-                    print('Epoch %d Iter %d/%d, loss %.3f' % (epoch,i,len(data_loader),loss.item()))
+            ac_a = 0.
+            for i, (input_hist, target_hist, input_pred, target_pred) in enumerate(test_loader):
+                # print(input_hist.shape, target_hist.shape, input_pred.shape, target_pred.shape)
+   
+#                 input_hist = input_hist.cuda()
+#                 target_hist = target_hist.cuda()
+#                 input_pred = input_pred.cuda()
+#                 target_pred = target_pred.cuda()
             
+                # Forward, Backward and Optimize
+                outputs, targets = rnn(input_hist, target_hist, input_pred, target_pred)
+                loss = torch.tensor(0.0).cuda()
+                if args.gpu:
+                    loss.to(device)
+
+                # print(outputs.type(), targets.type(), loss.type())
+                for k in range(num_quantiles):
+                    loss += quantile_loss(outputs[:,:,k], targets, quantiles[k])
+                    #loss_inter += quantile_loss(outputs_inter[:,:,k], targets_inter,  quantiles[k])
+                loss /= num_quantiles
             
+                ac_a += loss.item()
+            print('[TEST] Epoch %d, loss %.3f' % (epoch,ac_a/len(test_loader)))
+                
+            if (epoch+1) % 5 == 0:
+                torch.save(rnn.state_dict(), os.path.join('../logs/torch/', 'mqrnn_%d.pkl' %(epoch+1)))
+
 #         rnn.eval()
 #         with torch.no_grad():
             
@@ -184,10 +228,11 @@ if __name__ == '__main__':
                         help='step size for saving trained models')
     parser.add_argument('--test', type=int, default=0)
     parser.add_argument('--num_epochs', type=int, default=300)
-    parser.add_argument('--batch_size', type=int, default=256)
-    parser.add_argument('--num_workers', type=int, default=2)
-    parser.add_argument('--learning_rate', type=float, default=0.001)
+    parser.add_argument('--batch_size', type=int, default=8)
+    parser.add_argument('--num_workers', type=int, default=0)
+    parser.add_argument('--learning_rate', type=float, default=0.0001)
     parser.add_argument('--momentum', default=0.9, type=float,  help='momentum')
     parser.add_argument('--weight_decay', default=1e-4, type=float, help='weight decay (default: 1e-4)')
+    parser.add_argument('--gpu', default=False, type=bool, help='GPU')
     args = parser.parse_args()
     main(args)

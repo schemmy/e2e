@@ -34,7 +34,7 @@ def opt_order(d, inv):
     for i in (np.array(range(len(d)))[::-1]):
         temp_val = get_obj_val(d , np.sum(d[0:i+1]))
         temp_order = np.sum(d[0:i+1]) -inv
-        print(i,temp_val,temp_order)
+        # print(i,temp_val,temp_order)
         if (temp_val > pre_val ):
 #            print('checked point ',i,'val is', temp_val)
 #            print('temp_val', temp_val,'temp_order', temp_order)
@@ -48,9 +48,15 @@ def opt_order(d, inv):
     return np.maximum(temp_order,0)
 
 
-dm = [10,9,8,7,6,5,4,3,2,1,10]
-# dm = dm[::-1]
-inv = 0
-s = opt_order(dm, inv)
-print(s)
 
+for i in range(20):
+    demand = [1]*20
+    demand[i]+=100
+    # dm = dm[::-1]
+    inv = 0
+    s = opt_order(demand, inv)
+    print(s)
+
+
+# 上面这个例子里，假设有20天，某一天的销量为11，其他每天的销量都为1，我理解销量为11这一天对DP的解是有影响的。
+# 但是无论这一天是哪一天，好像现在的解都是前18天销量的和。想问下这是正常的吗？

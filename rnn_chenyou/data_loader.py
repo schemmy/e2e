@@ -11,7 +11,7 @@ from sklearn.model_selection import train_test_split
 
 class GEFPriceDataset(data.Dataset):
 
-    def __init__(self, phase, df, input_dim, pred_long, hist_long, total_long, test_sample=12):
+    def __init__(self, phase, df, input_dim, pred_long, hist_long, total_long, gpu, device, test_sample=12):
         df['Dec_y'] = df['Dec_y'].apply(lambda x:  [x[0]+[x[0][-1]]*(31-len(x[0]))] 
                                                 if len(x[0])<31 else x)
         self.data = df
@@ -21,6 +21,8 @@ class GEFPriceDataset(data.Dataset):
         self.input_dim = input_dim
         self.test_sample = test_sample
         self.phase = phase
+        self.gpu=gpu
+        self.device = device
 
         # get 12 different forecast creation dates
         #if phase=='test':
@@ -42,10 +44,16 @@ class GEFPriceDataset(data.Dataset):
         else:
             index = self.train_indices[idx]
 
-        Enc_input = torch.FloatTensor(self.data.loc[index, 'Enc_X']).view(self.hist_long,self.input_dim)
-        Enc_target = torch.FloatTensor(self.data.loc[index, 'Enc_y']).view(self.hist_long)
-        Dec_input = torch.FloatTensor(self.data.loc[index, 'Dec_X']).view(self.pred_long,self.input_dim)
-        Dec_target = torch.FloatTensor(self.data.loc[index, 'Dec_y']).view(self.pred_long)
+        if self.gpu:
+            Enc_input = torch.FloatTensor(self.data.loc[index, 'Enc_X']).view(self.hist_long,self.input_dim).to(self.device)
+            Enc_target = torch.FloatTensor(self.data.loc[index, 'Enc_y']).view(self.hist_long).to(self.device)
+            Dec_input = torch.FloatTensor(self.data.loc[index, 'Dec_X']).view(self.pred_long,self.input_dim).to(self.device)
+            Dec_target = torch.FloatTensor(self.data.loc[index, 'Dec_y']).view(self.pred_long).to(self.device)
+        else:
+            Enc_input = torch.FloatTensor(self.data.loc[index, 'Enc_X']).view(self.hist_long,self.input_dim)
+            Enc_target = torch.FloatTensor(self.data.loc[index, 'Enc_y']).view(self.hist_long)
+            Dec_input = torch.FloatTensor(self.data.loc[index, 'Dec_X']).view(self.pred_long,self.input_dim)
+            Dec_target = torch.FloatTensor(self.data.loc[index, 'Dec_y']).view(self.pred_long)
 
         return Enc_input, Enc_target, Dec_input, Dec_target
         
@@ -58,13 +66,13 @@ class GEFPriceDataset(data.Dataset):
 
 
 
-def get_loader_price(phase, data_json, input_dim, pred_long, hist_long, total_long, batch_size, shuffle, num_workers):
+def get_loader_price(phase, data_json, input_dim, pred_long, hist_long, total_long, batch_size, gpu, device, shuffle, num_workers):
 
-    dset = GEFPriceDataset(phase, data_json, input_dim, pred_long, hist_long, total_long)
+    dset = GEFPriceDataset(phase, data_json, input_dim, pred_long, hist_long, total_long, gpu, device)
     data_loader = torch.utils.data.DataLoader(dataset=dset,
                                               batch_size=batch_size,
                                               shuffle=shuffle,
                                               num_workers=num_workers,
-                                              pin_memory=True,
+                                              # pin_memory=True,
                                               drop_last=shuffle)
     return data_loader
