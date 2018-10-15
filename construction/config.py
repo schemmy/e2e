@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:42:42
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-10 14:07:08
+# @Last Modified at:   2018-10-15 14:54:25
 
 
 IDX = ['item_sku_id','sku_id']
@@ -50,14 +50,14 @@ SF_FEA = [
             ]
    
 MORE_FEA =[
-           'review_period', 
-           'normal', 
-           'gamma', 
-            'eq'
+           'review_period',
             ]
 
 IS_FEA = [
-           'initial_stock', 
+           'initial_stock',  
+           'normal', 
+           'gamma', 
+            'eq'
 #            'IS_over_mean_56'
         ]
     
@@ -92,3 +92,12 @@ CUT_FEA = VLT_FEA + SF_FEA + MORE_FEA
 MODEL_FEA = VLT_FEA + SF_FEA + MORE_FEA + IS_FEA + CAT_FEA_HOT
 
 
+
+rnn_hidden_len = 30  
+rnn_cxt_len = 5  
+rnn_pred_long = 31 
+rnn_hist_long = 91  
+rnn_total_long = rnn_pred_long + rnn_hist_long
+rnn_input_dim = 2 
+quantiles = [0.1, 0.25, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]   
+num_quantiles = len(quantiles)

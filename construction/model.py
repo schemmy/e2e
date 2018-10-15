@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 15:45:51
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-10 11:26:48
+# @Last Modified at:   2018-10-15 15:22:14
 # Template:
 # https://github.com/yunjey/domain-transfer-network/blob/master/model.py
 
@@ -614,13 +614,17 @@ class End2End_v5(object):
 
 
 
+
 class End2End_v5_tc(nn.Module):
 
 
-    def __init__(self):
+    def __init__(self, device, tf_graph=False):
         
         super(End2End_v5_tc, self).__init__()
         self.name='v5_tc'
+        self.device = device
+        self.tf_graph = tf_graph
+
 
         self.cat_dim = len(CAT_FEA_HOT)
         self.vlt_dim = len(VLT_FEA)
@@ -629,7 +633,7 @@ class End2End_v5_tc(nn.Module):
         self.is_dim = len(IS_FEA)
 
         self.input_dim =  self.vlt_dim + self.sf_dim + self.oth_dim + self.is_dim +self.cat_dim
-        self.hidden_dim = [[20, 20], [5, 5], [1, 1], 3]
+        self.hidden_dim = [[50, 50], [20, 20], [1, 1], 20]
         self.output_dim = 1
         self.q = 0.9
 
@@ -688,6 +692,131 @@ class End2End_v5_tc(nn.Module):
 
         return x, o_vlt, o_sf
 
+
+
+class Decoder_MLP(nn.Module):
+
+    def __init__(self, x_dim, hidden_size, context_size, num_quantiles, pred_long):
+        """Set the hyper-parameters and build the layers."""
+        super(Decoder_MLP, self).__init__()
+        
+        self.x_dim = x_dim
+        self.hidden_size = hidden_size
+        self.context_size = context_size
+        self.num_quantiles = num_quantiles
+        self.pred_long = pred_long
+
+        self.global_mlp = nn.Linear(hidden_size + x_dim * pred_long, context_size*(pred_long+1))
+        self.local_mlp = nn.Linear(context_size * 2 + x_dim, num_quantiles)
+
+        self.init_weights()
+    
+    def init_weights(self):
+        """Initialize weights."""
+        self.global_mlp.weight.data.normal_(0.0, 0.02)
+        self.global_mlp.bias.data.fill_(0)
+
+        self.local_mlp.weight.data.normal_(0.0, 0.02)
+        self.local_mlp.bias.data.fill_(0)
+
+        
+        
+    def forward(self, hidden_states, x_future):
+        # hidden_states: N x hidden_size
+        # x_future:      N x pred_long x x_dim
+        # y_future:      N x pred_long
+
+        #print('x_future size 0 ',x_future.size())
+        x_future_1 = x_future.view(x_future.size(0),x_future.size(1)*x_future.size(2))
+        #print('x_future size 1 ',x_future.size())
+        #print('hidden_states size 0',hidden_states.size())
+
+        # global MLP
+        hidden_future_concat = torch.cat((hidden_states, x_future_1),dim=1)
+        context_vectors = torch.sigmoid( self.global_mlp(hidden_future_concat) )
+        #print('context_vectors size ',context_vectors.size())
+
+        ca = context_vectors[:, self.context_size*self.pred_long:]
+        #print('ca size ',ca.size())
+        
+        results = []        
+        for k in range(self.pred_long):
+            xk = x_future[:,k,:]
+            ck = context_vectors[:, k*self.context_size:(k+1)*self.context_size]
+            cak = torch.cat((ck,ca,xk),dim=1)
+            #print('cak size ', cak.size())
+            # local MLP
+            quantile_pred = self.local_mlp(cak)
+            quantile_pred = quantile_pred.view(quantile_pred.size(0),1,quantile_pred.size(1))
+            #print('quantile_pred size ',quantile_pred.size())
+            results.append(quantile_pred)
+            
+            
+        result = torch.cat(results,dim=1)
+        #print('result size ',result.size())  # should be N x pred_long x num_quantiles
+        
+        return result
+    
+    
+
+class MQ_RNN(nn.Module):
+
+    def __init__(self, input_dim, hidden_size, context_size, num_quantiles, pred_long, hist_long, num_layers=1):
+        """Set the hyper-parameters and build the layers."""
+        super(MQ_RNN, self).__init__()
+
+        self.decoder = Decoder_MLP(context_size, hidden_size, context_size, num_quantiles, pred_long)
+        self.lstm = nn.LSTM(context_size+1, hidden_size, num_layers, batch_first=True)
+        
+        self.linear_encoder = nn.Linear(input_dim, context_size)  
+
+        self.input_dim = input_dim
+        self.num_quantiles = num_quantiles
+        self.pred_long = pred_long
+        self.hist_long = hist_long
+        self.total_long = pred_long + hist_long
+        self.init_weights()
+    
+    def init_weights(self):
+        """Initialize weights."""
+        self.decoder.init_weights()
+        
+        self.linear_encoder.weight.data.normal_(0.0, 0.02)
+        self.linear_encoder.bias.data.fill_(0)
+
+    
+    def forward(self, x_seq_hist, y_seq_hist, x_seq_pred):
+        
+        bsize = x_seq_hist.size(0)
+
+        assert x_seq_hist.size(1) == self.hist_long
+        assert x_seq_hist.size(2) == self.input_dim
+        assert x_seq_pred.size(1) == self.pred_long
+
+        x_feat_hist = torch.tanh(self.linear_encoder(x_seq_hist))
+        x_feat_pred = torch.tanh(self.linear_encoder(x_seq_pred))
+        
+        
+        self.lstm.flatten_parameters()
+        
+        y_seq_hist_1 = y_seq_hist.view(y_seq_hist.size(0), y_seq_hist.size(1), 1)
+
+        x_total_hist =  torch.cat([x_feat_hist,y_seq_hist_1], dim=2)
+        x_total_pred =  torch.cat([x_feat_pred], dim=2)
+                
+        #print('xy seq hist size ', xy_seq_hist.size())
+
+        hiddens, (ht, c) = self.lstm(x_total_hist)
+        #print('LSTM total output hidden size ', hiddens.size())
+        # print('LSTM last output hidden size ', ht.size())
+        # print('LSTM last output hidden size ', x_total_pred.size())
+        
+        ht = ht.view(ht.size(1),ht.size(2))
+
+        result = self.decoder(ht, x_total_pred)
+        result = result.view(-1, rnn_pred_long*num_quantiles)
+
+        return result
 
 
 
@@ -697,10 +826,12 @@ class End2End_v5_tc(nn.Module):
 class End2End_v6_tc(nn.Module):
 
 
-    def __init__(self):
+    def __init__(self, device, tf_graph=False):
         
-        super(End2End_v5_tc, self).__init__()
-        self.name='v5_tc'
+        super(End2End_v6_tc, self).__init__()
+        self.name='v6_tc'
+        self.device = device
+        self.tf_graph = tf_graph
 
         self.cat_dim = len(CAT_FEA_HOT)
         self.vlt_dim = len(VLT_FEA)
@@ -709,7 +840,7 @@ class End2End_v6_tc(nn.Module):
         self.is_dim = len(IS_FEA)
 
         self.input_dim =  self.vlt_dim + self.sf_dim + self.oth_dim + self.is_dim +self.cat_dim
-        self.hidden_dim = [[20, 20], [5, 5], [1, 1], 3]
+        self.hidden_dim = [[50, 50], [20, 20], [1, 1], 10]
         self.output_dim = 1
         self.q = 0.9
 
@@ -717,13 +848,92 @@ class End2End_v6_tc(nn.Module):
         self.fc_vlt_2 = nn.Linear(self.hidden_dim[0][0], self.hidden_dim[1][0])  
         self.fc_vlt_3 = nn.Linear(self.hidden_dim[1][0], self.hidden_dim[2][0])  
 
-        self.fc_sf_1 = nn.Linear(self.sf_dim+self.cat_dim, self.hidden_dim[0][1]) 
-        self.fc_sf_2 = nn.Linear(self.hidden_dim[0][1], self.hidden_dim[1][1]) 
-        self.fc_sf_3 = nn.Linear(self.hidden_dim[1][1], self.hidden_dim[2][1]) 
+        self.sf_mqrnn = MQ_RNN(rnn_input_dim, rnn_hidden_len, rnn_cxt_len, num_quantiles, rnn_pred_long, rnn_hist_long)
 
-        self.fc_3 = nn.Linear(self.hidden_dim[1][0]+self.hidden_dim[1][1]+self.oth_dim+self.is_dim, 
+        self.fc_3 = nn.Linear(rnn_pred_long*num_quantiles + self.hidden_dim[1][1]+self.oth_dim+self.is_dim, 
                                             self.hidden_dim[3])
         self.fc_4 = nn.Linear(self.hidden_dim[3], self.output_dim)
+        self.init_weights()
+
+
+    def init_weights(self):
+
+        self.fc_vlt_1.weight.data.normal_(0.0, 0.01)
+        self.fc_vlt_1.bias.data.fill_(0)
+        self.fc_vlt_2.weight.data.normal_(0.0, 0.01)
+        self.fc_vlt_2.bias.data.fill_(0)
+        self.fc_vlt_3.weight.data.normal_(0.0, 0.01)
+        self.fc_vlt_3.bias.data.fill_(0)
+
+        self.sf_mqrnn.load_state_dict(torch.load('../logs/torch/mqrnn_35.pkl', map_location=self.device))
+        for param in self.sf_mqrnn.parameters():
+            param.requires_grad = False
+
+        self.fc_3.weight.data.normal_(0.0, 0.01)
+        self.fc_3.bias.data.fill_(0)
+        self.fc_4.weight.data.normal_(0.0, 0.01)
+        self.fc_4.bias.data.fill_(0)
+
+
+    def forward(self, enc_X, enc_y, dec_X, x_vlt, x_cat, x_oth, x_is):
+
+        x1 = self.fc_vlt_1(torch.cat([x_vlt, x_cat], 1))
+        x1 = F.relu(x1)
+        x1 = self.fc_vlt_2(x1)
+        x1 = F.relu(x1)
+        o_vlt = self.fc_vlt_3(x1)
+
+        o_sf = self.sf_mqrnn(enc_X, enc_y, dec_X)
+
+        x = self.fc_3(torch.cat([x1, o_sf, x_oth, x_is],1))
+        x = F.relu(x)
+        x = self.fc_4(x)
+
+        return x, o_vlt, o_sf
+
+
+
+
+class End2End_v7_tc(nn.Module):
+
+
+    def __init__(self, device, tf_graph=False):
+        
+        super(End2End_v7_tc, self).__init__()
+        self.name='v7_tc'
+        self.device = device
+        self.tf_graph = tf_graph
+
+        self.cat_dim = len(CAT_FEA_HOT)
+        self.vlt_dim = len(VLT_FEA)
+        self.sf_dim = len(SF_FEA)
+        self.oth_dim = len(MORE_FEA)
+        self.is_dim = len(IS_FEA)
+
+        self.input_dim =  self.vlt_dim + self.sf_dim + self.oth_dim + self.is_dim +self.cat_dim
+        self.hidden_dim = [[50, None], [20, None], [1, None], [rnn_pred_long, None], 10]
+        self.output_dim = 1
+        self.q = 0.9
+
+        self.fc_vlt_1 = nn.Linear(self.vlt_dim+self.cat_dim, self.hidden_dim[0][0]) 
+        self.fc_vlt_2 = nn.Linear(self.hidden_dim[0][0], self.hidden_dim[1][0])  
+        self.fc_vlt_3 = nn.Linear(self.hidden_dim[1][0], self.hidden_dim[2][0])  
+
+        if self.tf_graph:
+            self.sf_mqrnn = nn.Linear(rnn_hist_long, rnn_pred_long*num_quantiles).to(device)
+        else:
+            self.sf_mqrnn = MQ_RNN(rnn_input_dim, rnn_hidden_len, rnn_cxt_len, num_quantiles, rnn_pred_long, rnn_hist_long)
+
+        self.fc_vlt_aug = nn.Linear(self.hidden_dim[2][0]+self.oth_dim, self.hidden_dim[3][0])
+
+        self.fc_3 = {}
+        for i in range(self.hidden_dim[3][0]):
+            # self.fc_3[i] = nn.Linear(rnn_pred_long*num_quantiles + 1, 1)
+            self.fc_3[i] = nn.Linear(num_quantiles + 1, 1).to(self.device)
+
+        self.fc_4 = nn.Linear(self.hidden_dim[3][0], self.hidden_dim[4])
+        self.fc_5 = nn.Linear(self.hidden_dim[4] + self.is_dim, self.output_dim)
+        self.init_weights()
 
 
     def init_weights(self):
@@ -735,20 +945,22 @@ class End2End_v6_tc(nn.Module):
         self.fc_vlt_3.weight.data.normal_(0.0, 0.01)
         self.fc_vlt_3.bias.data.fill_(0)
 
-        self.fc_sf_1.weight.data.normal_(0.0, 0.01)
-        self.fc_sf_1.bias.data.fill_(0)
-        self.fc_sf_2.weight.data.normal_(0.0, 0.01)
-        self.fc_sf_2.bias.data.fill_(0)
-        self.fc_sf_3.weight.data.normal_(0.0, 0.01)
-        self.fc_sf_3.bias.data.fill_(0)
+        self.sf_mqrnn.load_state_dict(torch.load('../logs/torch/mqrnn_35.pkl', map_location=self.device))
+        for param in self.sf_mqrnn.parameters():
+            param.requires_grad = False
 
+        self.fc_vlt_aug.weight.data.normal_(0.0, 0.01)
+        self.fc_vlt_aug.bias.data.fill_(0)
         self.fc_3.weight.data.normal_(0.0, 0.01)
         self.fc_3.bias.data.fill_(0)
         self.fc_4.weight.data.normal_(0.0, 0.01)
         self.fc_4.bias.data.fill_(0)
+        self.fc_5.weight.data.normal_(0.0, 0.01)
+        self.fc_5.bias.data.fill_(0)
 
 
-    def forward(self, x_vlt, x_sf, x_cat, x_oth, x_is):
+
+    def forward(self, enc_X, enc_y, dec_X, x_vlt, x_cat, x_oth, x_is):
 
         x1 = self.fc_vlt_1(torch.cat([x_vlt, x_cat], 1))
         x1 = F.relu(x1)
@@ -756,15 +968,19 @@ class End2End_v6_tc(nn.Module):
         x1 = F.relu(x1)
         o_vlt = self.fc_vlt_3(x1)
 
-        x2 = self.fc_sf_1(torch.cat([x_sf, x_cat], 1))
-        x2 = F.relu(x2)
-        x2 = self.fc_sf_2(x2)
-        x2 = F.relu(x2)
-        o_sf = self.fc_sf_3(x2)
+        vlt_aug = self.fc_vlt_aug(torch.cat([o_vlt, x_oth], 1))
+        if self.tf_graph:
+            o_sf = self.sf_mqrnn(enc_X).view(-1, rnn_pred_long, num_quantiles)
+        else:
+            o_sf = self.sf_mqrnn(enc_X, enc_y, dec_X)
 
-        x = self.fc_3(torch.cat([x1, x2, x_oth, x_is],1))
+        sf_vlt = torch.Tensor(x1.shape[0], self.hidden_dim[3][0]).to(self.device)
+        for i in range(self.hidden_dim[3][0]):
+            vlt_1 = vlt_aug[:,i].view(-1, 1)
+            sf_vlt[:,i] = self.fc_3[i](torch.cat([o_sf[:,i,:], vlt_1], 1)).view(-1)
+
+        x = self.fc_4(sf_vlt)
         x = F.relu(x)
-        x = self.fc_4(x)
+        x = self.fc_5(torch.cat([x, x_is], 1))
 
         return x, o_vlt, o_sf
-

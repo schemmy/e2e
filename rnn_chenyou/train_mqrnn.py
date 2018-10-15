@@ -48,11 +48,11 @@ def main(args):
     args.hidden_size = 30   # see paper, LSTM size
     args.context_size = 5   # see paper, 3.2, context size
     args.pred_long = 31     # see paper, the forecast is future 24 hours
-    args.hist_long = 51    # see paper, the history is up to 168 hours
+    args.hist_long = 91    # see paper, the history is up to 168 hours
     args.total_long = args.pred_long + args.hist_long
     args.input_dim = 2    # two horizons
 
-    quantiles = [0.01, 0.25, 0.5, 0.75, 0.99]    
+    quantiles = [0.1, 0.25, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]    
     num_quantiles = len(quantiles)
     
     with open('../data/1320_feature/df_s2s.pkl', 'rb') as fp:
@@ -68,6 +68,7 @@ def main(args):
     # Loss 
     quantile_loss = QauntileLossNew(y_norm=False, size_average=True, use_square=False)
 
+    device = 'None'
     if args.gpu:
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         print(device)
@@ -90,10 +91,10 @@ def main(args):
     total_step = len(data_loader)
 
     # if args.test==1:
-    rnn.load_state_dict(torch.load('../logs/torch/mqrnn_110.pkl'))
+    # rnn.load_state_dict(torch.load('../logs/torch/mqrnn_110.pkl'))
 
 
-    for epoch in range(110, args.num_epochs):
+    for epoch in range(args.num_epochs):
         
         ac_l = 0
         if args.test==0:      
@@ -107,6 +108,9 @@ def main(args):
             
                 # Forward, Backward and Optimize
                 outputs, targets = rnn(input_hist, target_hist, input_pred, target_pred)
+                # print(outputs[0][0].data)
+                # print(targets[0][0][0].data)
+                # print()
                 loss = torch.tensor(0.0).cuda()
                 if args.gpu:
                     loss.to(device)

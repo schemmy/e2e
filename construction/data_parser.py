@@ -13,6 +13,7 @@ from sklearn.preprocessing import MinMaxScaler
 class data_parser:
 
     def __init__(self):
+
         pass
 
     def process_vlt_data(self, path, path_to, filename):
@@ -66,8 +67,46 @@ class data_parser:
         return quantile_feature, mean_feature
 
 
-    def add_stock_feature(self, X, raw_path, path_to, stock_file, file_to_save):
 
+    def get_vlt_sales_feature(self, quantile_list, quantile_window_list, mean_window_list, pred_len_list, 
+                              raw_path, process_path, path_to,
+                              vlt_file, filled_sale_file, file_to_save,
+                              Model='M2Q', is_far=False):
+
+        if os.path.exists('%s%s' %(path_to, file_to_save)):
+            X = pd.read_csv('%s%s' %(path_to, file_to_save), parse_dates=['create_tm','complete_dt','dt'] )
+            print('VLT and sales feature read!')
+
+        else:
+            df_vlt = self.process_vlt_data(raw_path, process_path, vlt_file)
+            df_sl = self.process_sales_data(quantile_list, quantile_window_list, mean_window_list, 
+                                            raw_path, process_path, filled_sale_file)
+            quantile_feature, mean_feature = self.read_sales_data(quantile_list, quantile_window_list, mean_window_list, process_path)
+
+            test_date = df_vlt['create_tm'].dt.normalize().rename('train_date')
+            pred_len = pred_len_list[0]
+            q = quantile_list[0]
+
+            X = prepare_training_data(df_sl, q, 
+                                     is_far, 
+                                     pred_len, 
+                                     Model, 
+                                     test_date, 
+                                     mean_window_list, 
+                                     quantile_window_list, 
+                                     quantile_feature,
+                                     mean_feature,
+                                     df_vlt['item_sku_id'],
+                                     is_train=False)
+
+            X = pd.concat([df_vlt, X], axis=1)
+            X.to_csv('%s%s' %(path_to, file_to_save), index=False)
+
+            print('VLT and sales feature obtained and aggregated!')
+        return X
+
+
+    def add_stock_feature(self, X, raw_path, path_to, stock_file, file_to_save):
 
         df_st = pd.read_csv('%s%s' %(raw_path, stock_file), index_col=0)
         df_st.columns = pd.to_datetime(df_st.columns)
@@ -117,6 +156,8 @@ class data_parser:
         df_sl = pd.read_csv('%s%s' %(path, filename), index_col=0)
         df_sl.rename(columns=lambda x: (dt.datetime(2016,1,1) + dt.timedelta(days=int(x)-730)).date(), inplace=True)
 
+        X.drop_duplicates(['item_sku_id', 'complete_dt'], keep='first', inplace=True)
+
         X['next_complete_dt'] = X.groupby('item_sku_id').complete_dt.shift(-1).fillna(dt.datetime(2018,8,31))
         X['demand_RV'] = X.apply(lambda x: sum(df_sl.loc[x['item_sku_id'], \
                                             x['create_tm'].date():x['next_complete_dt'].date()].values)\
@@ -133,47 +174,12 @@ class data_parser:
                                     - (X['initial_stock'] - X['demand_V']).clip(0.0)
         X['target_decision_nobc'].clip(0.0, inplace=True)
 
+        X.dropna(inplace=True)
+
         X.to_csv('%s%s' %(path_to, file_to_save), index=False)
         print('Targets aggregated!')
         return X
 
-
-    def get_vlt_sales_feature(self, quantile_list, quantile_window_list, mean_window_list, pred_len_list, 
-                              raw_path, process_path, path_to,
-                              vlt_file, filled_sale_file, file_to_save,
-                              Model='M2Q', is_far=False):
-
-        if os.path.exists('%s%s' %(path_to, file_to_save)):
-            X = pd.read_csv('%s%s' %(path_to, file_to_save), parse_dates=['create_tm','complete_dt','dt'] )
-            print('VLT and sales feature read!')
-
-        else:
-            df_vlt = self.process_vlt_data(raw_path, process_path, vlt_file)
-            df_sl = self.process_sales_data(quantile_list, quantile_window_list, mean_window_list, 
-                                            raw_path, process_path, filled_sale_file)
-            quantile_feature, mean_feature = self.read_sales_data(quantile_list, quantile_window_list, mean_window_list, process_path)
-
-            test_date = df_vlt['create_tm'].dt.normalize().rename('train_date')
-            pred_len = pred_len_list[0]
-            q = quantile_list[0]
-
-            X = prepare_training_data(df_sl, q, 
-                                     is_far, 
-                                     pred_len, 
-                                     Model, 
-                                     test_date, 
-                                     mean_window_list, 
-                                     quantile_window_list, 
-                                     quantile_feature,
-                                     mean_feature,
-                                     df_vlt['item_sku_id'],
-                                     is_train=False)
-
-            X = pd.concat([df_vlt, X], axis=1)
-            X.to_csv('%s%s' %(path_to, file_to_save), index=False)
-
-            print('VLT and sales feature obtained and aggregated!')
-        return X
 
     def add_more_and_labels(self, X, raw_path, output_path, filled_sale_file, stock_file, file_to_save):
 
@@ -183,19 +189,69 @@ class data_parser:
         return X
 
 
+    def add_time_series(self, lw, rw, path, process_path, sale_file, file_read, file_to_save):
+
+        if os.path.exists('%s%s' %(path, file_read)):
+            o0 = pd.read_csv(path+file_read, 
+                     parse_dates=['create_tm','complete_dt','dt','next_complete_dt'],
+                     usecols=lambda col: col not in ['d_vlt']
+                     )
+        else:
+            raise Exception('Missing previous steps!')
+
+        df_sl = pd.read_csv(process_path+sale_file, index_col=0)
+        df_sl.rename(columns=lambda x: (dt.datetime(2016,1,1) + dt.timedelta(days=int(x)-730)).date(), inplace=True)
+        # df_sl = df_sl.pct_change(axis='columns').replace(np.inf, 2.0).fillna(0)
+
+        o0['Enc_X'] = o0.apply(lambda x: [
+                            np.log1p(df_sl.loc[x['item_sku_id'], 
+                                     x['create_tm'].date()-dt.timedelta(days=lw+365):
+                                          x['create_tm'].date()-dt.timedelta(days=365)
+                                    ]).values.tolist(),
+                            np.log1p(df_sl.loc[x['item_sku_id'], 
+                                     x['create_tm'].date()-dt.timedelta(days=lw+92):
+                                          x['create_tm'].date()-dt.timedelta(days=92)
+                                     ]).values.tolist(),
+                           ], axis=1)
+
+        o0['Enc_y'] = o0.apply(lambda x: [np.log1p(df_sl.loc[x['item_sku_id'], 
+                                     x['create_tm'].date()-dt.timedelta(days=lw):x['create_tm'].date()
+                                    ]).values.tolist(),
+                           ], axis=1)
+
+        o0['Dec_X'] = o0.apply(lambda x: [
+                            np.log1p(df_sl.loc[x['item_sku_id'], 
+                                     x['create_tm'].date()-dt.timedelta(days=365):
+                                          x['create_tm'].date()-dt.timedelta(days=365-rw)
+                                    ]).values.tolist(),
+                            np.log1p(df_sl.loc[x['item_sku_id'], 
+                                     x['create_tm'].date()-dt.timedelta(days=92):
+                                          x['create_tm'].date()-dt.timedelta(days=92-rw)
+                                     ]).values.tolist(),
+                           ], axis=1)
+        o0['Dec_y'] = o0.apply(lambda x: [np.log1p(df_sl.loc[x['item_sku_id'], 
+                                     x['create_tm'].date():x['create_tm'].date()+dt.timedelta(days=rw)
+                                    ]).values.tolist(),
+                           ], axis=1)
+        o0['Dec_y'] = o0['Dec_y'].apply(lambda x:  [x[0]+[x[0][-1]]*(rw+1-len(x[0]))] 
+                                                    if len(x[0])<rw+1 else x)
+
+        with open(path+file_to_save, 'wb') as file_pkl:
+            pickle.dump(o0, file_pkl, protocol=pickle.HIGHEST_PROTOCOL)
+
+
 def dummy_cut_tf(path, file_read, file_to_save):
 
-    o0 = pd.read_csv(path+file_read, 
-             parse_dates=['create_tm','complete_dt','dt','next_complete_dt'],
-             usecols=lambda col: col not in ['d_vlt']
-             )
+    with open(path+file_read, 'rb') as fp:
+        o0 = pickle.load(fp)
+
     # o0['IS_over_mean_56'] = (o0['initial_stock_overall'] / o0['mean_56']).replace(np.inf, 0).fillna(0)
     # o0['overall_opt_order_for_opt'] = o0['overall_opt_order'].copy()
     o0['label_sf'] = o0['demand_RV'] / o0['vlt_actual']
     o1 = o0.copy()
     o1.loc[:,'sku_id'] = o1['item_sku_id'].apply(lambda x: x.split('#')[0])
     sku_set = o1.sku_id.unique()
-    sku_train, sku_test = train_test_split(sku_set, random_state=10, train_size=0.8, test_size=0.1)
+    # sku_train, sku_test = train_test_split(sku_set, random_state=10, train_size=0.8, test_size=0.2)
 
     o1[CAT_FEA] = o1[CAT_FEA].astype('category')
     o_dummy = pd.get_dummies(o1[CAT_FEA])
@@ -207,71 +263,29 @@ def dummy_cut_tf(path, file_read, file_to_save):
     # SCALE_FEA =  VLT_FEA + SF_FEA + MORE_FEA + IS_FEA + CAT_FEA_HOT
     # CUT_FEA = VLT_FEA + SF_FEA + MORE_FEA
 
+    # CUT_ = ((o2[CUT_FEA]<0).sum()==0).index
+    # o2[CUT_] = np.log1p(o1[CUT_])
+    # o2[CUT_] = np.log1p(o1[CUT_])
+
     low_qtl = o1[CUT_FEA].quantile(0.01)
     hgh_qtl = o1[CUT_FEA].quantile(0.98)
-    o2 = o2.copy()
-    o2.loc[:, CUT_FEA] = o1[CUT_FEA].clip(low_qtl, hgh_qtl, axis=1)
+    o2.loc[:, CUT_FEA] = o2[CUT_FEA].clip(low_qtl, hgh_qtl, axis=1)
 
-    o2r = o2[o2[LABEL[0]]<=o2[LABEL[0]].quantile(0.99)]
+    o2 = o2[o2[LABEL[0]]<=o2[LABEL[0]].quantile(0.99)].reset_index(drop=True)
+    o2r = o2.copy() 
+    # o2r[LABEL[0]] = np.log1p(o2[LABEL[0]])
 
-    df_train = o2r[o2r['sku_id'].isin(sku_train)]
-    df_test = o2r[o2r['sku_id'].isin(sku_test)]
-
-    with open(path+file_to_save, 'wb') as file_pkl:
-        pickle.dump([df_train, df_test], file_pkl, protocol=pickle.HIGHEST_PROTOCOL)
-
-
-
-def add_time_series(lw, rw, path, process_path, sale_file, file_read, file_to_save):
-
-    o0 = pd.read_csv(path+file_read, 
-             parse_dates=['create_tm','complete_dt','dt','next_complete_dt'],
-             usecols=lambda col: col not in ['d_vlt']
-             )
-
-    df_sl = pd.read_csv(process_path+sale_file, index_col=0)
-    df_sl.rename(columns=lambda x: (dt.datetime(2016,1,1) + dt.timedelta(days=int(x)-730)).date(), inplace=True)
-    # df_sl = df_sl.pct_change(axis='columns').replace(np.inf, 2.0).fillna(0)
-
-    o0['Enc_X'] = o0.apply(lambda x: [
-                        df_sl.loc[x['item_sku_id'], 
-                                 x['create_tm'].date()-dt.timedelta(days=lw+365):
-                                      x['create_tm'].date()-dt.timedelta(days=365)
-                                ].values.tolist(),
-                        df_sl.loc[x['item_sku_id'], 
-                                 x['create_tm'].date()-dt.timedelta(days=lw+92):
-                                      x['create_tm'].date()-dt.timedelta(days=92)
-                                 ].values.tolist(),
-                       ], axis=1)
-
-    o0['Enc_y'] = o0.apply(lambda x: [df_sl.loc[x['item_sku_id'], 
-                                 x['create_tm'].date()-dt.timedelta(days=lw):x['create_tm'].date()
-                                ].values.tolist(),
-                       ], axis=1)
-
-    o0['Dec_X'] = o0.apply(lambda x: [
-                        df_sl.loc[x['item_sku_id'], 
-                                 x['create_tm'].date()-dt.timedelta(days=365):
-                                      x['create_tm'].date()-dt.timedelta(days=365-rw)
-                                ].values.tolist(),
-                        df_sl.loc[x['item_sku_id'], 
-                                 x['create_tm'].date()-dt.timedelta(days=92):
-                                      x['create_tm'].date()-dt.timedelta(days=92-rw)
-                                 ].values.tolist(),
-                       ], axis=1)
-    o0['Dec_y'] = o0.apply(lambda x: [df_sl.loc[x['item_sku_id'], 
-                                 x['create_tm'].date():x['create_tm'].date()+dt.timedelta(days=rw)
-                                ].values.tolist(),
-                       ], axis=1)
-    o0['Dec_y'] = o0['Dec_y'].apply(lambda x:  [x[0]+[x[0][-1]]*(rw+1-len(x[0]))] 
-                                                if len(x[0])<rw+1 else x)
+    # df_train = o2r[o2r['sku_id'].isin(sku_train)]
+    # df_test = o2r[o2r['sku_id'].isin(sku_test)]
 
     with open(path+file_to_save, 'wb') as file_pkl:
-        pickle.dump(o0, file_pkl, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(o2r, file_pkl, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 
-def dummy_cut_tc(path, file_read, file_to_save1, file_to_save2):
+
+
+def dummy_cut_tc(path, file_read, file_to_save):
 
     # o0 = pd.read_csv(path+file_read, 
     #          parse_dates=['create_tm','complete_dt','dt','next_complete_dt'],
@@ -300,26 +314,31 @@ def dummy_cut_tc(path, file_read, file_to_save1, file_to_save2):
     hgh_qtl = o1[CUT_FEA].quantile(0.98)
 
     o2.loc[:, CUT_FEA] = o1[CUT_FEA].clip(low_qtl, hgh_qtl, axis=1)
+    o2r = o2.copy()
 
-    o2r = o2[o2[LABEL[0]]<=o2[LABEL[0]].quantile(0.99)].reset_index()
+    o2r = o2[o2[LABEL[0]]<=o2[LABEL[0]].quantile(0.99)].reset_index(drop=True)
+    # o2r[LABEL[0]] = np.log1p(o2r[LABEL[0]])
+
+    with open(path+file_to_save, 'wb') as file_pkl:
+        pickle.dump(o2r, file_pkl, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-    X_ns, y_ns = o2r[SCALE_FEA], o2r[LABEL]
-    X_scaler = MinMaxScaler() # For normalizing dataset
-    y_scaler = MinMaxScaler() # For normalizing dataset
+    # X_ns, y_ns = o2r[SCALE_FEA], o2r[LABEL]
+    # X_scaler = MinMaxScaler() # For normalizing dataset
+    # y_scaler = MinMaxScaler() # For normalizing dataset
 
-    X = pd.DataFrame(X_scaler.fit_transform(X_ns), columns=X_ns.columns)
-    y = pd.DataFrame(y_scaler.fit_transform(y_ns), columns=y_ns.columns)
+    # X = pd.DataFrame(X_scaler.fit_transform(X_ns), columns=X_ns.columns)
+    # y = pd.DataFrame(y_scaler.fit_transform(y_ns), columns=y_ns.columns)
 
-    pd_scaler = pd.concat([pd.DataFrame([y_scaler.data_min_, y_scaler.scale_], columns=y_ns.columns),
-                pd.DataFrame([X_scaler.data_min_, X_scaler.scale_], columns=X_ns.columns)], axis=1)
-    pd_scaler.to_csv(output_path+'scaler.csv', index=False)
+    # pd_scaler = pd.concat([pd.DataFrame([y_scaler.data_min_, y_scaler.scale_], columns=y_ns.columns),
+    #             pd.DataFrame([X_scaler.data_min_, X_scaler.scale_], columns=X_ns.columns)], axis=1)
+    # pd_scaler.to_csv(output_path+'scaler.csv', index=False)
 
-    with open(path+file_to_save1, 'wb') as file_pkl:
-        pickle.dump(pd.concat([o2r[IDX], o2r[SEQ2SEQ]], axis=1), file_pkl, protocol=pickle.HIGHEST_PROTOCOL)
+    # with open(path+file_to_save1, 'wb') as file_pkl:
+    #     pickle.dump(pd.concat([o2r[IDX], o2r[SEQ2SEQ]], axis=1), file_pkl, protocol=pickle.HIGHEST_PROTOCOL)
 
-    with open(path+file_to_save2, 'wb') as file_pkl:
-        pickle.dump(pd.concat([o2r[IDX], X, y], axis=1), file_pkl, protocol=pickle.HIGHEST_PROTOCOL)
+    # with open(path+file_to_save2, 'wb') as file_pkl:
+    #     pickle.dump(pd.concat([o2r[IDX], X, y], axis=1), file_pkl, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 raw_path = '../data/1320/'
@@ -331,7 +350,7 @@ vlt_file = 'vlt_2018_0708.csv'
 stock_file = 'stock.csv'
 feature_file = 'features_v1.csv'
 feature_file2 = 'features_v11.csv'
-feature_file3 = 'features_v12.csv'
+# feature_file3 = 'features_v12.csv'
 feature_file4 = 'features_v13.pkl'
 feature_file5 = 'df_train_test.pkl'
 
@@ -340,11 +359,11 @@ quantile_window_list = [7,14,28,56,112]
 mean_window_list = [3,7,14,28,56,112]
 pred_len_list = [31,14,7,3,1]
 
-# o = data_parser()
+o = data_parser()
 # X = o.get_vlt_sales_feature(quantile_list, quantile_window_list, mean_window_list, pred_len_list,
 #                   raw_path, process_path, output_path, vlt_file, filled_sale_file, feature_file)
 # o.add_more_and_labels(X, raw_path, output_path, filled_sale_file, stock_file, feature_file2)
 
-add_time_series(50, 30, output_path, process_path, filled_sale_file, feature_file3, feature_file4)
-dummy_cut_tc(output_path, feature_file4, 'df_s2s.pkl', 'df_e2e.pkl')
+# o.add_time_series(90, 30, output_path, process_path, filled_sale_file, feature_file2, feature_file4)
+dummy_cut_tf(output_path, feature_file4, 'df_e2e_tf.pkl')
 
