@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:30:40
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-16 18:07:09
+# @Last Modified at:   2018-10-17 15:50:36
 
 
 import tensorflow as tf
@@ -63,6 +63,8 @@ def main_tc(args):
         model = End2End_v5_tc(device).to(device)
     elif args.model_name == 'v6':
         model = End2End_v6_tc(device).to(device)
+    elif args.model_name == 'v7':
+        model = End2End_v7_tc(device).to(device)
     else:
         raise Exception('Unsupported model name!')
 
@@ -93,7 +95,7 @@ def main_tc(args):
         
         if 'v5' in model.name:
             e2e_loss = E2E_loss(device)
-        elif 'v6' in model.name:
+        else:
             e2e_loss = E2E_v6_loss(device)
 
         params = list(model.parameters())
@@ -176,16 +178,17 @@ def main_tc(args):
         model.load_state_dict(checkpoint['model_state_dict'])
         print('load model!')
         
-        # for _, X in enumerate(test_loader):
-        for _, (X, S1, S2) in enumerate(test_loader):
-            # out, out_vlt, out_sf = model(X[:,:50], X[:,50:112], X[:,112:124], X[:,124:125], X[:,125:129])
-            out, out_vlt, out_sf = model(S1[:,:,:2], S1[:,:,2:], S2[:,:,:2], X[:,:50], X[:,112:124], X[:,124:125], X[:,125:129])
+        for _, X in enumerate(test_loader):
+        # for _, (X, S1, S2) in enumerate(test_loader):
+            out, out_vlt, out_sf = model(X[:,:50], X[:,50:112], X[:,112:124], X[:,124:125], X[:,125:129])
+            # out, out_vlt, out_sf = model(S1[:,:,:2], S1[:,:,2:], S2[:,:,:2], X[:,:50], X[:,112:124], X[:,124:125], X[:,125:129])
 
         pd_scaler = pd.read_csv('../data/1320_feature/scaler.csv')
         out = out.detach().cpu().numpy() / pd_scaler.loc[1, LABEL[0]] + pd_scaler.loc[0, LABEL[0]]
         pred = pd.DataFrame(out, columns=['E2E_NN_pred'])
         if 'v5' in model.name:
             out_sf = out_sf.detach().cpu().numpy() / pd_scaler.loc[1, LABEL_sf[0]] + pd_scaler.loc[0, LABEL_sf[0]]
+            out_sf = np.exp(out_sf) - 1
             pred_sf = pd.DataFrame(out_sf, columns=['E2E_NN_SF_mean_pred'])
             pred = pd.concat([pred, pred_sf], axis=1)
             pred.to_csv('../logs/torch/pred.csv', index=False)
@@ -201,10 +204,10 @@ if __name__ == '__main__':
     # tf.app.run()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', type=str , default='v6',
+    parser.add_argument('--model_name', type=str , default='v7',
                         help='v5: MLP; v6: RNN')
-    parser.add_argument('--test', type=int, default=1)
-    parser.add_argument('--model_to_load', type=str , default='e2e_v6_tc_20.pkl',
+    parser.add_argument('--test', type=int, default=0)
+    parser.add_argument('--model_to_load', type=str , default='e2e_v5_tc_28.pkl',
                         help='model to be loaded for evaluation')
     parser.add_argument('--train_check', type=str , default='None',
                         help='checkpoint for continuing training')
@@ -214,7 +217,7 @@ if __name__ == '__main__':
                         help='path for data')
     parser.add_argument('--log_step', type=int , default=145,
                         help='step size for printing log info')
-    parser.add_argument('--save_step', type=int , default=10,
+    parser.add_argument('--save_step', type=int , default=5,
                         help='step size for saving trained models')
     parser.add_argument('--num_epochs', type=int, default=100)
     parser.add_argument('--bs', type=int, default=64)

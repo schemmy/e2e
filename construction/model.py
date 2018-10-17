@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 15:45:51
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-15 18:31:21
+# @Last Modified at:   2018-10-17 15:52:19
 # Template:
 # https://github.com/yunjey/domain-transfer-network/blob/master/model.py
 
@@ -633,20 +633,21 @@ class End2End_v5_tc(nn.Module):
         self.is_dim = len(IS_FEA)
 
         self.input_dim =  self.vlt_dim + self.sf_dim + self.oth_dim + self.is_dim +self.cat_dim
-        self.hidden_dim = [[100, 120], [1, 1], 100, 30]
+        self.hidden_dim = [[100, 120], [30, 30], [1, 1], 100, 30]
         self.output_dim = 1
-        self.q = 0.9
 
         self.fc_vlt_1 = nn.Linear(self.vlt_dim+self.cat_dim, self.hidden_dim[0][0]) 
         self.fc_vlt_2 = nn.Linear(self.hidden_dim[0][0], self.hidden_dim[1][0])  
+        self.fc_vlt_3 = nn.Linear(self.hidden_dim[1][0], self.hidden_dim[2][0])  
 
         self.fc_sf_1 = nn.Linear(self.sf_dim+self.cat_dim, self.hidden_dim[0][1]) 
         self.fc_sf_2 = nn.Linear(self.hidden_dim[0][1], self.hidden_dim[1][1]) 
+        self.fc_sf_3 = nn.Linear(self.hidden_dim[1][1], self.hidden_dim[2][1]) 
 
-        self.fc_3 = nn.Linear(self.hidden_dim[0][0]+self.hidden_dim[0][1]+self.oth_dim+self.is_dim, 
-                                            self.hidden_dim[2])
-        self.fc_4 = nn.Linear(self.hidden_dim[2], self.hidden_dim[3])
-        self.fc_5 = nn.Linear(self.hidden_dim[3], self.output_dim)
+        self.fc_3 = nn.Linear(self.hidden_dim[1][0]+self.hidden_dim[1][1]+self.oth_dim+self.is_dim, 
+                                            self.hidden_dim[3])
+        self.fc_4 = nn.Linear(self.hidden_dim[3], self.hidden_dim[4])
+        self.fc_5 = nn.Linear(self.hidden_dim[4], self.output_dim)
         self.init_weights()
 
 
@@ -656,11 +657,15 @@ class End2End_v5_tc(nn.Module):
         self.fc_vlt_1.bias.data.fill_(0)
         self.fc_vlt_2.weight.data.normal_(0.0, 0.01)
         self.fc_vlt_2.bias.data.fill_(0)
+        self.fc_vlt_3.weight.data.normal_(0.0, 0.01)
+        self.fc_vlt_3.bias.data.fill_(0)
 
         self.fc_sf_1.weight.data.normal_(0.0, 0.01)
         self.fc_sf_1.bias.data.fill_(0)
         self.fc_sf_2.weight.data.normal_(0.0, 0.01)
         self.fc_sf_2.bias.data.fill_(0)
+        self.fc_sf_3.weight.data.normal_(0.0, 0.01)
+        self.fc_sf_3.bias.data.fill_(0)
 
         self.fc_3.weight.data.normal_(0.0, 0.01)
         self.fc_3.bias.data.fill_(0)
@@ -674,11 +679,15 @@ class End2End_v5_tc(nn.Module):
 
         x1 = self.fc_vlt_1(torch.cat([x_vlt, x_cat], 1))
         x1 = F.relu(x1)
-        o_vlt = self.fc_vlt_2(x1)
+        x1 = self.fc_vlt_2(x1)
+        x1 = F.relu(x1)
+        o_vlt = self.fc_vlt_3(x1)
 
         x2 = self.fc_sf_1(torch.cat([x_sf, x_cat], 1))
         x2 = F.relu(x2)
-        o_sf = self.fc_sf_2(x2)
+        x2 = self.fc_sf_2(x2)
+        x2 = F.relu(x2)
+        o_sf = self.fc_sf_3(x2)
 
         x = self.fc_3(torch.cat([x1, x2, x_oth, x_is],1))
         x = F.relu(x)
@@ -861,9 +870,9 @@ class End2End_v6_tc(nn.Module):
         self.fc_vlt_3.weight.data.normal_(0.0, 0.01)
         self.fc_vlt_3.bias.data.fill_(0)
 
-        # self.sf_mqrnn.load_state_dict(torch.load('../logs/torch/mqrnn_35.pkl', map_location=self.device))
-        # for param in self.sf_mqrnn.parameters():
-        #     param.requires_grad = False
+        self.sf_mqrnn.load_state_dict(torch.load('../logs/torch/mqrnn_35.pkl', map_location=self.device))
+        for param in self.sf_mqrnn.parameters():
+            param.requires_grad = False
 
         self.fc_3.weight.data.normal_(0.0, 0.01)
         self.fc_3.bias.data.fill_(0)
@@ -947,8 +956,9 @@ class End2End_v7_tc(nn.Module):
 
         self.fc_vlt_aug.weight.data.normal_(0.0, 0.01)
         self.fc_vlt_aug.bias.data.fill_(0)
-        self.fc_3.weight.data.normal_(0.0, 0.01)
-        self.fc_3.bias.data.fill_(0)
+        for i in range(self.hidden_dim[3][0]):
+            self.fc_3[i].weight.data.normal_(0.0, 0.01)
+            self.fc_3[i].bias.data.fill_(0)
         self.fc_4.weight.data.normal_(0.0, 0.01)
         self.fc_4.bias.data.fill_(0)
         self.fc_5.weight.data.normal_(0.0, 0.01)
@@ -969,6 +979,7 @@ class End2End_v7_tc(nn.Module):
             o_sf = self.sf_mqrnn(enc_X).view(-1, rnn_pred_long, num_quantiles)
         else:
             o_sf = self.sf_mqrnn(enc_X, enc_y, dec_X)
+        o_sf = o_sf.view(-1, rnn_pred_long, num_quantiles)
 
         sf_vlt = torch.Tensor(x1.shape[0], self.hidden_dim[3][0]).to(self.device)
         for i in range(self.hidden_dim[3][0]):

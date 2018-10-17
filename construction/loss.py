@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-09 11:00:00
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-16 17:04:49
+# @Last Modified at:   2018-10-17 15:48:24
 
 
 import torch
@@ -10,7 +10,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data as data
 import pickle  
-import pandas as pd   
+import pandas as pd  
+import numpy as np 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from config import *
@@ -28,7 +29,7 @@ class QauntileLoss(nn.Module):
         self.use_square = use_square
     
     # score is N x 31
-    def forward(self, input, target, quantile=0.8):
+    def forward(self, input, target, quantile=0.7):
         
         if self.use_square:
             input = torch.pow(input, 2)
@@ -56,17 +57,19 @@ class E2E_loss(nn.Module):
         self.lmd_2 = 0.5
 
     # score is N x 31
-    def forward(self, vlt_o, vlt_t, sf_o, sf_t, out, target, qtl=0.8):
+    def forward(self, vlt_o, vlt_t, sf_o, sf_t, out, target, qtl=0.7):
 
         diff = out - target
-
         zero_1 = torch.zeros_like(diff).to(self.device)
         zero_2 = torch.zeros_like(diff).to(self.device)
         qtl_loss = qtl * torch.max(-diff, zero_1) + (1 - qtl) * torch.max(diff, zero_2)
         self.qtl_loss = qtl_loss.mean() if self.size_average else qtl_loss.sum()
 
         self.vlt_loss = nn.MSELoss()(vlt_o, vlt_t)
-        self.sf_loss = nn.MSELoss()(sf_o, sf_t)
+
+        diff_sf = sf_o - sf_t
+        sf_loss = 0.9 * torch.max(-diff_sf, zero_1) + 0.1 * torch.max(diff_sf, zero_2)
+        self.sf_loss = sf_loss.mean() if self.size_average else sf_loss.sum()
         
         self.loss = self.qtl_loss + self.lmd_1 * self.vlt_loss + self.lmd_2 * self.sf_loss
 
@@ -85,7 +88,7 @@ class E2E_v6_loss(nn.Module):
         self.quantile_loss = QauntileLoss(y_norm=False, size_average=True, use_square=False)
 
     # score is N x 31
-    def forward(self, vlt_o, vlt_t, sf_o, sf_t, out, target, qtl=0.8):
+    def forward(self, vlt_o, vlt_t, sf_o, sf_t, out, target, qtl=0.7):
 
         diff = out - target
 
@@ -116,8 +119,9 @@ class E2E_Dataset(data.Dataset):
         self.device = device
         self.model_name = model_name
 
-        df_train = o2[(o2['sku_id'].isin(sku_train)) & (o2['create_tm'] < dt.datetime(2018,8,5))].reset_index(drop=True)
-        df_test = o2[(o2['sku_id'].isin(sku_test)) & (o2['create_tm'] >= dt.datetime(2018,8,5))].reset_index(drop=True)
+        o2[LABEL_sf[0]] =  np.log1p(o2[LABEL_sf[0]])
+        df_train = o2[(o2['sku_id'].isin(sku_train)) & (o2['create_tm'] < dt.datetime(2018,7,27))].reset_index(drop=True)
+        df_test = o2[(o2['sku_id'].isin(sku_test)) & (o2['create_tm'] >= dt.datetime(2018,7,27))].reset_index(drop=True)
 
         self.train_len = len(df_train)
         self.test_len = len(df_test)
@@ -161,7 +165,7 @@ class E2E_Dataset(data.Dataset):
 
         if 'v5' in self.model_name:
             return self.X[idx].to(self.device)
-        elif 'v6' in self.model_name:
+        else:
             return self.X[idx].to(self.device), self.S1[idx].to(self.device), self.S2[idx].to(self.device)
         
 
@@ -180,8 +184,9 @@ def get_loader(batch_size, device, model_name, eval=0, data_dir='../data/', num_
     with open(data_dir + '1320_feature/df_e2e.pkl', 'rb') as fp:
         o2 = pickle.load(fp)
 
+    o2 = o2[o2.next_complete_dt < dt.datetime(2018,8,31)]
     sku_set = o2.sku_id.unique()
-    sku_train, sku_test = train_test_split(sku_set, random_state=10, train_size=0.85, test_size=0.15)
+    sku_train, sku_test = train_test_split(sku_set, random_state=12, train_size=0.9, test_size=0.1)
 
     if eval == 0:
         train_set = E2E_Dataset(o2, sku_train, sku_test, 'train', model_name, device)
