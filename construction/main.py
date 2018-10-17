@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:30:40
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-15 15:36:06
+# @Last Modified at:   2018-10-16 17:14:52
 
 
 import tensorflow as tf
@@ -59,8 +59,12 @@ def main_tc(args):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
 
-    # model = End2End_v5_tc(device).to(device)
-    model = End2End_v6_tc(device).to(device)
+    if args.model_name == 'v5':
+        model = End2End_v5_tc(device).to(device)
+    elif args.model_name == 'v6':
+        model = End2End_v6_tc(device).to(device)
+    else:
+        raise Exception('Unsupported model name!')
 
     if os.path.exists('../logs/torch_board/%s' %model.name):
         call(['rm', '-r', '../logs/torch_board/%s' %model.name])
@@ -85,32 +89,35 @@ def main_tc(args):
 
     if args.test==0:
 
-        data_loader, test_loader = get_loader(args.bs, device)
+        data_loader, test_loader = get_loader(args.bs, device, model.name)
         
-        # e2e_loss = E2E_loss()
-        e2e_loss = E2E_v6_loss(device)
+        if 'v5' in model.name:
+            e2e_loss = E2E_loss(device)
+        elif 'v6' in model.name:
+            e2e_loss = E2E_v6_loss(device)
+
         params = list(model.parameters())
         optimizer = torch.optim.Adam(params, lr=args.learning_rate)
 
         curr_epoch = 0
 
-        # model.load_state_dict(torch.load('../logs/torch/e2e_v6_30.pkl'))
-        # checkpoint = torch.load('../logs/torch/e2e_v6_30.pkl')
-        # model.load_state_dict(checkpoint['model_state_dict'])
-        # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        # curr_epoch = checkpoint['epoch']
-        # loss = checkpoint['loss']
-        # print('load model!')
+        if args.model_to_load != 'None':
+            # model.load_state_dict(torch.load('../logs/torch/e2e_v6_30.pkl'))
+            checkpoint = torch.load(args.model_path+args.model_to_load)
+            model.load_state_dict(checkpoint['model_state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            curr_epoch = checkpoint['epoch']
+            loss = checkpoint['loss']
+            print('load model!')
 
         for epoch in range(curr_epoch, args.num_epochs):
             train_loss0, train_loss1 = 0, 0
-            # for i, (x_vlt, x_sf, x_cat, x_oth, x_is, target, tar_vlt, tar_sf) in enumerate(data_loader):
-            for i, (x_vlt, x_sf, x_cat, x_oth, x_is, target, tar_vlt, enc_X, enc_y, dec_X, dec_y) in enumerate(data_loader):
-
-                # out, out_vlt, out_sf = model(x_vlt, x_sf, x_cat, x_oth, x_is)
-                out, out_vlt, out_sf = model(enc_X, enc_y, dec_X, x_vlt, x_cat, x_oth, x_is)
-                # batch_loss = e2e_loss(out_vlt, tar_vlt, out_sf, tar_sf, out, target)
-                batch_loss1, batch_loss0 = e2e_loss(out_vlt, tar_vlt, out_sf, dec_y, out, target)
+            for i, X in enumerate(data_loader):
+            # for i, (X, S1, S2) in enumerate(data_loader):
+                out, out_vlt, out_sf = model(X[:,:50], X[:,50:112], X[:,112:124], X[:,124:125], X[:,125:129])
+                # out, out_vlt, out_sf = model(S1[:,:,:2], S1[:,:,2:], S2[:,:,:2], X[:,:50], X[:,112:124], X[:,124:125], X[:,125:129])
+                batch_loss1, batch_loss0 = e2e_loss(out_vlt, X[:,130:131], out_sf, X[:,131:132], out, X[:,129:130])
+                # batch_loss1, batch_loss0 = e2e_loss(out_vlt, X[:,130:131], out_sf, S2[:,:,2], out, X[:,129:130])
 
                 # if epoch>0:
                 optimizer.zero_grad()
@@ -123,17 +130,17 @@ def main_tc(args):
                 if (i+1) % args.log_step == 0:
 
                     test_loss0, test_loss1 = 0, 0
-                    # for _, (x_vlt, x_sf, x_cat, x_oth, x_is, target, tar_vlt, tar_sf) in enumerate(test_loader):
-                    for _, (x_vlt, x_sf, x_cat, x_oth, x_is, target, tar_vlt, enc_X, enc_y, dec_X, dec_y) in enumerate(test_loader):
-                        # out, out_vlt, out_sf = model(x_vlt, x_sf, x_cat, x_oth, x_is)
-                        out, out_vlt, out_sf = model(enc_X, enc_y, dec_X, x_vlt, x_cat, x_oth, x_is)
-                        # loss = e2e_loss(out_vlt, tar_vlt, out_sf, tar_sf, out, target)
-                        loss1, loss0 = e2e_loss(out_vlt, tar_vlt, out_sf, dec_y, out, target)
+                    for _, X in enumerate(test_loader):
+                    # for _, (X, S1, S2) in enumerate(test_loader):
+                        out, out_vlt, out_sf = model(X[:,:50], X[:,50:112], X[:,112:124], X[:,124:125], X[:,125:129])
+                        # out, out_vlt, out_sf = model(S1[:,:,:2], S1[:,:,2:], S2[:,:,:2], X[:,:50], X[:,112:124], X[:,124:125], X[:,125:129])
+                        loss1, loss0 = e2e_loss(out_vlt, X[:,130:131], out_sf, X[:,131:132], out, X[:,129:130])
+                        # loss1, loss0 = e2e_loss(out_vlt, X[:,130:131], out_sf, S2[:,:,2], out, X[:,129:130])
                         test_loss1 += loss1.item()
                         test_loss0 += loss0.item()
 
-                    print('Epoch %d %.3f%, loss_1 %.5f, loss_ttl %.5f, test_loss_1 %.5f, test_loss_ttl %.5f' % 
-                                    (epoch,(i+1)/len(data_loader),train_loss1/args.log_step,train_loss0/args.log_step, 
+                    print('Epoch %d pct %.3f, loss_1 %.5f, loss_ttl %.5f, test_loss_1 %.5f, test_loss_ttl %.5f' % 
+                                    (epoch,(i+1)/len(data_loader),train_loss1/args.log_step,train_loss0/args.log_step,
                                         test_loss1/len(test_loader), test_loss0/len(test_loader)))
 
                     for name, param in model.named_parameters():
@@ -148,33 +155,38 @@ def main_tc(args):
                     train_loss0, train_loss1 = 0, 0
 
             
-            if (epoch+1) % 10 == 0:
+            if (epoch+1) % args.save_step == 0:
                 # torch.save(model.state_dict(), os.path.join('../logs/torch/', 'e2e_v6_%d.pkl' %(epoch+1)))
                 torch.save({
                             'epoch': epoch+1,
                             'model_state_dict': model.state_dict(),
                             'optimizer_state_dict': optimizer.state_dict(),
-                            'loss': loss,
-                            }, os.path.join('../logs/torch/', 'e2e_v6_%d.pkl' %(epoch+1)))
+                            'loss': batch_loss1,
+                            }, os.path.join('../logs/torch/', 'e2e_%s_%d.pkl' %(model.name,epoch+1)))
 
         train_writer.close()
         test_writer.close()
 
     else:
 
-        _, test_loader = get_loader(args.bs, device, eval=1)
+        _, test_loader = get_loader(args.bs, device, model.name, eval=1)
 
         # model.load_state_dict(torch.load('../logs/torch/e2e_v6_20.pkl'))
-        checkpoint = torch.load('../logs/torch/e2e_v6_30.pkl')
+        checkpoint = torch.load(args.model_path+args.model_to_load)
         model.load_state_dict(checkpoint['model_state_dict'])
         print('load model!')
-
-        for i, (x_vlt, x_sf, x_cat, x_oth, x_is, target, tar_vlt, enc_X, enc_y, dec_X, dec_y) in enumerate(test_loader):
-            # out, out_vlt, out_sf = model(x_vlt, x_sf, x_cat, x_oth, x_is)
-            out, out_vlt, out_sf = model(enc_X, enc_y, dec_X, x_vlt, x_cat, x_oth, x_is)
         
-        out = out.detach().cpu().numpy() / pd_scaler.loc[1, 'demand_RV'] + pd_scaler.loc[0, 'demand_RV']
-        pred = pd.DataFrame(out, columns=['prediction']).fillna(0)
+        for _, X in enumerate(test_loader):
+        # for _, (X, S1, S2) in enumerate(test_loader):
+            out, out_vlt, out_sf = model(X[:,:50], X[:,50:112], X[:,112:124], X[:,124:125], X[:,125:129])
+            # out, out_vlt, out_sf = model(S1[:,:,:2], S1[:,:,2:], S2[:,:,:2], X[:,:50], X[:,112:124], X[:,124:125], X[:,125:129])
+
+        pd_scaler = pd.read_csv('../data/1320_feature/scaler.csv')
+        out = out.detach().cpu().numpy() / pd_scaler.loc[1, LABEL[0]] + pd_scaler.loc[0, LABEL[0]]
+        out_sf = out_sf.detach().cpu().numpy() / pd_scaler.loc[1, LABEL_sf[0]] + pd_scaler.loc[0, LABEL_sf[0]]
+        pred = pd.DataFrame(out, columns=['E2E_NN_pred'])
+        pred_sf = pd.DataFrame(out_sf, columns=['E2E_NN_SF_daily_pred'])
+        pred = pd.concat([pred, pred_sf], axis=1)
         pred.to_csv('../logs/torch/pred.csv', index=False)
 
 
@@ -182,15 +194,19 @@ if __name__ == '__main__':
     # tf.app.run()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_path', type=str, default='./models_price/' ,
-                        help='path for saving trained models')
-    parser.add_argument('--data_path', type=str, default='./price_data.json',
-                        help='path for train annotation json file')
-    parser.add_argument('--log_step', type=int , default=198,
+    parser.add_argument('--model_name', type=str , default='v5',
+                        help='v5: MLP; v6: RNN')
+    parser.add_argument('--model_to_load', type=str , default='e2e_v5_tc_10.pkl',
                         help='step size for printing log info')
-    parser.add_argument('--save_step', type=int , default=1000,
+    parser.add_argument('--model_path', type=str, default='../logs/torch/' ,
+                        help='path for saving trained models')
+    parser.add_argument('--data_path', type=str, default='../data/1320_feature/',
+                        help='path for data')
+    parser.add_argument('--log_step', type=int , default=145,
+                        help='step size for printing log info')
+    parser.add_argument('--save_step', type=int , default=10,
                         help='step size for saving trained models')
-    parser.add_argument('--test', type=int, default=0)
+    parser.add_argument('--test', type=int, default=1)
     parser.add_argument('--num_epochs', type=int, default=100)
     parser.add_argument('--bs', type=int, default=64)
     parser.add_argument('--learning_rate', type=float, default=0.0001)
