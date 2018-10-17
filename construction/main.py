@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:30:40
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-16 17:14:52
+# @Last Modified at:   2018-10-16 18:07:09
 
 
 import tensorflow as tf
@@ -101,9 +101,9 @@ def main_tc(args):
 
         curr_epoch = 0
 
-        if args.model_to_load != 'None':
+        if args.train_check != 'None':
             # model.load_state_dict(torch.load('../logs/torch/e2e_v6_30.pkl'))
-            checkpoint = torch.load(args.model_path+args.model_to_load)
+            checkpoint = torch.load(args.model_path+args.train_check)
             model.load_state_dict(checkpoint['model_state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             curr_epoch = checkpoint['epoch']
@@ -112,12 +112,12 @@ def main_tc(args):
 
         for epoch in range(curr_epoch, args.num_epochs):
             train_loss0, train_loss1 = 0, 0
-            for i, X in enumerate(data_loader):
-            # for i, (X, S1, S2) in enumerate(data_loader):
-                out, out_vlt, out_sf = model(X[:,:50], X[:,50:112], X[:,112:124], X[:,124:125], X[:,125:129])
-                # out, out_vlt, out_sf = model(S1[:,:,:2], S1[:,:,2:], S2[:,:,:2], X[:,:50], X[:,112:124], X[:,124:125], X[:,125:129])
-                batch_loss1, batch_loss0 = e2e_loss(out_vlt, X[:,130:131], out_sf, X[:,131:132], out, X[:,129:130])
-                # batch_loss1, batch_loss0 = e2e_loss(out_vlt, X[:,130:131], out_sf, S2[:,:,2], out, X[:,129:130])
+            # for i, X in enumerate(data_loader):
+            for i, (X, S1, S2) in enumerate(data_loader):
+                # out, out_vlt, out_sf = model(X[:,:50], X[:,50:112], X[:,112:124], X[:,124:125], X[:,125:129])
+                out, out_vlt, out_sf = model(S1[:,:,:2], S1[:,:,2:], S2[:,:,:2], X[:,:50], X[:,112:124], X[:,124:125], X[:,125:129])
+                # batch_loss1, batch_loss0 = e2e_loss(out_vlt, X[:,130:131], out_sf, X[:,131:132], out, X[:,129:130])
+                batch_loss1, batch_loss0 = e2e_loss(out_vlt, X[:,130:131], out_sf, S2[:,:,2], out, X[:,129:130])
 
                 # if epoch>0:
                 optimizer.zero_grad()
@@ -130,12 +130,12 @@ def main_tc(args):
                 if (i+1) % args.log_step == 0:
 
                     test_loss0, test_loss1 = 0, 0
-                    for _, X in enumerate(test_loader):
-                    # for _, (X, S1, S2) in enumerate(test_loader):
-                        out, out_vlt, out_sf = model(X[:,:50], X[:,50:112], X[:,112:124], X[:,124:125], X[:,125:129])
-                        # out, out_vlt, out_sf = model(S1[:,:,:2], S1[:,:,2:], S2[:,:,:2], X[:,:50], X[:,112:124], X[:,124:125], X[:,125:129])
-                        loss1, loss0 = e2e_loss(out_vlt, X[:,130:131], out_sf, X[:,131:132], out, X[:,129:130])
-                        # loss1, loss0 = e2e_loss(out_vlt, X[:,130:131], out_sf, S2[:,:,2], out, X[:,129:130])
+                    # for _, X in enumerate(test_loader):
+                    for _, (X, S1, S2) in enumerate(test_loader):
+                        # out, out_vlt, out_sf = model(X[:,:50], X[:,50:112], X[:,112:124], X[:,124:125], X[:,125:129])
+                        out, out_vlt, out_sf = model(S1[:,:,:2], S1[:,:,2:], S2[:,:,:2], X[:,:50], X[:,112:124], X[:,124:125], X[:,125:129])
+                        # loss1, loss0 = e2e_loss(out_vlt, X[:,130:131], out_sf, X[:,131:132], out, X[:,129:130])
+                        loss1, loss0 = e2e_loss(out_vlt, X[:,130:131], out_sf, S2[:,:,2], out, X[:,129:130])
                         test_loss1 += loss1.item()
                         test_loss0 += loss0.item()
 
@@ -176,28 +176,38 @@ def main_tc(args):
         model.load_state_dict(checkpoint['model_state_dict'])
         print('load model!')
         
-        for _, X in enumerate(test_loader):
-        # for _, (X, S1, S2) in enumerate(test_loader):
-            out, out_vlt, out_sf = model(X[:,:50], X[:,50:112], X[:,112:124], X[:,124:125], X[:,125:129])
-            # out, out_vlt, out_sf = model(S1[:,:,:2], S1[:,:,2:], S2[:,:,:2], X[:,:50], X[:,112:124], X[:,124:125], X[:,125:129])
+        # for _, X in enumerate(test_loader):
+        for _, (X, S1, S2) in enumerate(test_loader):
+            # out, out_vlt, out_sf = model(X[:,:50], X[:,50:112], X[:,112:124], X[:,124:125], X[:,125:129])
+            out, out_vlt, out_sf = model(S1[:,:,:2], S1[:,:,2:], S2[:,:,:2], X[:,:50], X[:,112:124], X[:,124:125], X[:,125:129])
 
         pd_scaler = pd.read_csv('../data/1320_feature/scaler.csv')
         out = out.detach().cpu().numpy() / pd_scaler.loc[1, LABEL[0]] + pd_scaler.loc[0, LABEL[0]]
-        out_sf = out_sf.detach().cpu().numpy() / pd_scaler.loc[1, LABEL_sf[0]] + pd_scaler.loc[0, LABEL_sf[0]]
         pred = pd.DataFrame(out, columns=['E2E_NN_pred'])
-        pred_sf = pd.DataFrame(out_sf, columns=['E2E_NN_SF_daily_pred'])
-        pred = pd.concat([pred, pred_sf], axis=1)
-        pred.to_csv('../logs/torch/pred.csv', index=False)
+        if 'v5' in model.name:
+            out_sf = out_sf.detach().cpu().numpy() / pd_scaler.loc[1, LABEL_sf[0]] + pd_scaler.loc[0, LABEL_sf[0]]
+            pred_sf = pd.DataFrame(out_sf, columns=['E2E_NN_SF_mean_pred'])
+            pred = pd.concat([pred, pred_sf], axis=1)
+            pred.to_csv('../logs/torch/pred.csv', index=False)
+        else:
+            out_sf = out_sf.view(-1, rnn_pred_long, num_quantiles).detach().cpu().numpy()
+            out_sf = np.exp(out_sf) - 1
+            pred.to_csv('../logs/torch/pred.csv', index=False)
+            out_sf.dump('../logs/torch/pred_E2E_NN_RNN.pkl')
+
 
 
 if __name__ == '__main__':
     # tf.app.run()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', type=str , default='v5',
+    parser.add_argument('--model_name', type=str , default='v6',
                         help='v5: MLP; v6: RNN')
-    parser.add_argument('--model_to_load', type=str , default='e2e_v5_tc_10.pkl',
-                        help='step size for printing log info')
+    parser.add_argument('--test', type=int, default=1)
+    parser.add_argument('--model_to_load', type=str , default='e2e_v6_tc_20.pkl',
+                        help='model to be loaded for evaluation')
+    parser.add_argument('--train_check', type=str , default='None',
+                        help='checkpoint for continuing training')
     parser.add_argument('--model_path', type=str, default='../logs/torch/' ,
                         help='path for saving trained models')
     parser.add_argument('--data_path', type=str, default='../data/1320_feature/',
@@ -206,7 +216,6 @@ if __name__ == '__main__':
                         help='step size for printing log info')
     parser.add_argument('--save_step', type=int , default=10,
                         help='step size for saving trained models')
-    parser.add_argument('--test', type=int, default=1)
     parser.add_argument('--num_epochs', type=int, default=100)
     parser.add_argument('--bs', type=int, default=64)
     parser.add_argument('--learning_rate', type=float, default=0.0001)

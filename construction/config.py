@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:42:42
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-16 14:37:57
+# @Last Modified at:   2018-10-16 17:26:47
 
 
 IDX = ['item_sku_id','sku_id']
@@ -82,7 +82,7 @@ SEQ2SEQ = ['Enc_X', 'Enc_y', 'Dec_X', 'Dec_y']
 
 
 # LABEL = ['target_decision']    
-LABEL = ['demand_RV_dp']    
+LABEL = ['demand_RV']    
 LABEL_vlt = ['vlt_actual']    
 LABEL_sf = ['label_sf']    
 
