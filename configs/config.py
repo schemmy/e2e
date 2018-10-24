@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:42:42
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-23 18:08:43
+# @Last Modified at:   2018-10-24 10:49:26
 
 
 IDX = ['item_sku_id','sku_id','create_tm','complete_dt']
@@ -55,11 +55,10 @@ MORE_FEA =[
 
 IS_FEA = [
            # 'initial_stock',  
-           # 'normal', 
-           # 'gamma', 
-           #  'eq'
+           'normal', 
+           'gamma', 
+            'eq'
 #            'IS_over_mean_56'
-             'int_org_num_316',
         ]
     
 CAT_FEA_HOT = ['item_third_cate_cd_1591',
@@ -72,7 +71,7 @@ CAT_FEA_HOT = ['item_third_cate_cd_1591',
              'int_org_num_6',
              'int_org_num_9',
              'int_org_num_10',
-             # 'int_org_num_316',
+             'int_org_num_316',
              'int_org_num_772']
 
 TO_SCALE = [

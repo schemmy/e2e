@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:30:40
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-23 18:15:32
+# @Last Modified at:   2018-10-24 10:49:36
 
 import sys
 sys.path.append('../')
@@ -92,7 +92,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str , default='v5',
                         help='v5: MLP; v6: RNN')
-    parser.add_argument('--test', type=int, default=3 )
+    parser.add_argument('--test', type=int, default=2 )
     parser.add_argument('--test_sku', type=str, default='None')
     parser.add_argument('--b_value', type=int, default=None)
     parser.add_argument('--model_to_load', type=str , default='e2e_v5.pkl',
