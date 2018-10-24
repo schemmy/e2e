@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:30:40
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-19 15:58:00
+# @Last Modified at:   2018-10-19 16:04:41
 
 
 import numpy as np
@@ -19,7 +19,7 @@ import datetime as dt
 import matplotlib.pyplot as plt
 
 
-df_comare.plot.bar(rot=0)
+df_compare.plot.bar(rot=0)
 plt.savefig('../figures/eps/exp2.eps', dpi=200)
 
 

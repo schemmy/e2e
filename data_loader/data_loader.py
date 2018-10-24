@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-09 11:00:00
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-19 15:02:45
+# @Last Modified at:   2018-10-23 15:05:53
 
 
 import torch
@@ -17,13 +17,14 @@ import datetime as dt
 
 class E2E_Dataset(data.Dataset):
 
-    def __init__(self, o2, sku_train, sku_test, phase, model_name, device):
+    def __init__(self, o2, sku_train, sku_test, phase, model_name, b, device):
 
         self.phase = phase
         self.device = device
         self.model_name = model_name
 
         o2[LABEL_sf[0]] =  np.log1p(o2[LABEL_sf[0]])
+
         df_train = o2[(o2['sku_id'].isin(sku_train)) & (o2['create_tm'] < dt.datetime(2018,7,27))]\
                         .reset_index(drop=True)
         if len(sku_test) == 1:
@@ -35,6 +36,13 @@ class E2E_Dataset(data.Dataset):
 
         self.train_len = len(df_train)
         self.test_len = len(df_test)
+
+        # if b != None:
+            # LABEL = ['demand_RV_%i' %b]
+        df_train = pd.concat([df_train[VLT_FEA+SF_FEA+CAT_FEA_HOT+MORE_FEA+IS_FEA], \
+                                df_train[LABEL], df_train[LABEL_vlt+LABEL_sf+IDX+SEQ2SEQ]], axis=1)
+        df_test = pd.concat([df_test[VLT_FEA+SF_FEA+CAT_FEA_HOT+MORE_FEA+IS_FEA], \
+                                df_test[LABEL], df_test[LABEL_vlt+LABEL_sf+IDX+SEQ2SEQ]], axis=1)
 
         X_train_ns, y_train_ns, id_train = df_train[SCALE_FEA], df_train[LABEL], df_train[IDX]
         X_test_ns, y_test_ns, id_test = df_test[SCALE_FEA], df_test[LABEL], df_test[IDX]
@@ -58,20 +66,26 @@ class E2E_Dataset(data.Dataset):
             df = self.X_test.astype(float)
             lb = self.y_test.astype(float)
             s2s = df_test
-            id_test.to_csv('../logs/torch/pred_sku.csv', index=False)
+            pd.concat([id_test, df_test[['vlt_actual']]], axis=1)\
+                                .to_csv('../logs/torch/pred_sku.csv', index=False)
         else:
             df = self.X_train.astype(float)
             lb = self.y_train.astype(float)
             s2s = df_train
 
-        self.X = pd.concat([df[VLT_FEA+SF_FEA+CAT_FEA_HOT+MORE_FEA+IS_FEA], lb, df[LABEL_vlt+LABEL_sf]], axis=1)
+        self.X = pd.concat([df[VLT_FEA+SF_FEA+CAT_FEA_HOT+MORE_FEA+IS_FEA], lb, df[LABEL_vlt+LABEL_sf]], \
+            axis=1)
+        # print(self.X.columns, self.X.shape)
+        print(self.X.isnull().sum().sum(), self.train_len, self.test_len)
+        self.X = torch.from_numpy(self.X.values).float()
+
+
         self.S1 = torch.cat([torch.FloatTensor(s2s['Enc_X']).view(-1,rnn_hist_long,2), 
                              torch.FloatTensor(s2s['Enc_y']).view(-1,rnn_hist_long,1)], 2)
         self.S2 = torch.cat([torch.FloatTensor(s2s['Dec_X']).view(-1,rnn_pred_long,2), 
                              torch.FloatTensor(s2s['Dec_y']).view(-1,rnn_pred_long,1)], 2)
+        
 
-        print(self.X.isnull().sum().sum(), self.train_len, self.test_len)
-        self.X = torch.from_numpy(self.X.values).float()
 
     def __getitem__(self, idx):
 
@@ -91,7 +105,7 @@ class E2E_Dataset(data.Dataset):
 
 
 
-def get_loader(batch_size, device, model_name, eval=0, test_sku='None', data_dir='../data/', num_workers=0):
+def get_loader(batch_size, device, model_name, b=None, eval=0, test_sku='None', data_dir='../data/', num_workers=0):
 
     with open(data_dir + '1320_feature/df_e2e.pkl', 'rb') as fp:
         o2 = pickle.load(fp)
@@ -100,15 +114,19 @@ def get_loader(batch_size, device, model_name, eval=0, test_sku='None', data_dir
     sku_set = o2.sku_id.unique()
     sku_train, sku_test = train_test_split(sku_set, random_state=12, train_size=0.9, test_size=0.1)
 
+    if b != None:
+       o2['demand_RV_%i' %b] = o2.apply(lambda x: sum(x['demand_RV_list']) if len(x['demand_RV_list']) <= b \
+                else sum(x['demand_RV_list'][:-int((x['review_period']+x['vlt_actual'])//(b+1))]), axis=1)
+
     if eval == 0:
-        train_set = E2E_Dataset(o2, sku_train, sku_test, 'train', model_name, device)
+        train_set = E2E_Dataset(o2, sku_train, sku_test, 'train', model_name, b, device)
         data_loader = torch.utils.data.DataLoader(dataset=train_set,
                                               batch_size=batch_size,
                                               shuffle=True,
                                               num_workers=0,
                                               # pin_memory=True
                                               )
-        test_set = E2E_Dataset(o2, sku_train, sku_test, 'test', model_name, device)
+        test_set = E2E_Dataset(o2, sku_train, sku_test, 'test', model_name, b, device)
         test_loader = torch.utils.data.DataLoader(dataset=test_set,
                                                   batch_size=batch_size,
                                                   shuffle=False,
@@ -119,7 +137,7 @@ def get_loader(batch_size, device, model_name, eval=0, test_sku='None', data_dir
         if test_sku != 'None':
             sku_test = [test_sku]
         data_loader = {}
-        test_set = E2E_Dataset(o2, sku_train, sku_test, 'test', model_name, device)
+        test_set = E2E_Dataset(o2, sku_train, sku_test, 'test', model_name, b, device)
         test_loader = torch.utils.data.DataLoader(dataset=test_set,
                                                   batch_size=test_set.test_len,
                                                   shuffle=False,

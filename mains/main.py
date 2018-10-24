@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:30:40
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-19 15:45:09
+# @Last Modified at:   2018-10-23 18:15:32
 
 import sys
 sys.path.append('../')
@@ -15,8 +15,6 @@ torch.multiprocessing.set_start_method('spawn', force=True)
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-
 
 flags = tf.app.flags
 flags.DEFINE_string('mode', 'train', "'pretrain', 'train' or 'eval'")
@@ -55,6 +53,7 @@ def main_tc(args):
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
+
     if args.model_name == 'v5':
         model = End2End_v5_tc(device).to(device)
     elif args.model_name == 'v6':
@@ -64,17 +63,25 @@ def main_tc(args):
     else:
         raise Exception('Unsupported model name!')
 
+    if args.model_name == 'v5' and args.test == 3:
+        model = End2End_v5_tc_naive(device).to(device)
+        args.model_to_load = 'e2e_v5_sense_naive.pkl'
+
     trainer = Trainer(model, args, device)
 
     if args.model_name == 'v5':
         if args.test == 0:
             trainer.train_v5_tc()
-        else:
+        elif args.test == 1:
             trainer.eval_v5_tc()
+        elif args.test == 2:
+            trainer.sens_v5_tc()
+        elif args.test == 3:
+            trainer.sens_naive()
     else:
         if args.test == 0:
             trainer.train_v6_tc()
-        else:
+        elif args.test == 1:
             trainer.eval_v6_tc()
 
 
@@ -85,9 +92,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str , default='v5',
                         help='v5: MLP; v6: RNN')
-    parser.add_argument('--test', type=int, default=0)
+    parser.add_argument('--test', type=int, default=3 )
     parser.add_argument('--test_sku', type=str, default='None')
-    parser.add_argument('--model_to_load', type=str , default='e2e_v6_tc_40.pkl',
+    parser.add_argument('--b_value', type=int, default=None)
+    parser.add_argument('--model_to_load', type=str , default='e2e_v5.pkl',
                         help='model to be loaded for evaluation')
     parser.add_argument('--train_check', type=str , default='None',
                         help='checkpoint for continuing training')
@@ -99,11 +107,11 @@ if __name__ == '__main__':
                         help='path for data')
     parser.add_argument('--log_step', type=int , default=145,
                         help='step size for printing log info')
-    parser.add_argument('--save_step', type=int , default=5,
+    parser.add_argument('--save_step', type=int , default=13,
                         help='step size for saving trained models')
-    parser.add_argument('--num_epochs', type=int, default=200)
+    parser.add_argument('--num_epochs', type=int, default=30)
     parser.add_argument('--bs', type=int, default=64)
-    parser.add_argument('--learning_rate', type=float, default=0.0001)
+    parser.add_argument('--learning_rate', type=float, default=0.001)
     parser.add_argument('--momentum', default=0.9, type=float,  help='momentum')
     parser.add_argument('--weight_decay', default=1e-4, type=float, help='weight decay (default: 1e-4)')
     args = parser.parse_args()

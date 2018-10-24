@@ -2,10 +2,10 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:42:42
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-19 15:37:12
+# @Last Modified at:   2018-10-23 18:08:43
 
 
-IDX = ['item_sku_id','sku_id','create_tm','complete_dt','vlt_actual']
+IDX = ['item_sku_id','sku_id','create_tm','complete_dt']
 
 CAT_FEA = [
 #     'item_first_cate_cd', 'item_second_cate_cd', 
@@ -54,11 +54,12 @@ MORE_FEA =[
             ]
 
 IS_FEA = [
-           'initial_stock',  
-           'normal', 
-           'gamma', 
-            'eq'
+           # 'initial_stock',  
+           # 'normal', 
+           # 'gamma', 
+           #  'eq'
 #            'IS_over_mean_56'
+             'int_org_num_316',
         ]
     
 CAT_FEA_HOT = ['item_third_cate_cd_1591',
@@ -71,7 +72,7 @@ CAT_FEA_HOT = ['item_third_cate_cd_1591',
              'int_org_num_6',
              'int_org_num_9',
              'int_org_num_10',
-             'int_org_num_316',
+             # 'int_org_num_316',
              'int_org_num_772']
 
 TO_SCALE = [
@@ -86,8 +87,17 @@ LABEL = ['demand_RV']
 LABEL_vlt = ['vlt_actual']    
 LABEL_sf = ['label_sf']    
 
+p1 = len(VLT_FEA)
+p2 = p1 + len(SF_FEA)
+p3 = p2 + len(CAT_FEA_HOT)
+p4 = p3 + len(MORE_FEA)
+p5 = p4 + len(IS_FEA)
+p6 = p5 + 1
+p7 = p6 + 1
+p8 = p7 + 1
 
-SCALE_FEA =  VLT_FEA + SF_FEA + MORE_FEA + IS_FEA + CAT_FEA_HOT + TO_SCALE + LABEL_vlt + LABEL_sf
+
+SCALE_FEA =  VLT_FEA + SF_FEA + CAT_FEA_HOT + MORE_FEA + IS_FEA  + LABEL_vlt + LABEL_sf
 CUT_FEA = VLT_FEA + SF_FEA + MORE_FEA
 MODEL_FEA = VLT_FEA + SF_FEA + MORE_FEA + IS_FEA + CAT_FEA_HOT
 

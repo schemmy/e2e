@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 15:45:51
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-19 15:01:19
+# @Last Modified at:   2018-10-23 18:08:25
 # Template:
 # https://github.com/yunjey/domain-transfer-network/blob/master/model.py
 
@@ -611,14 +611,13 @@ class End2End_v5(object):
 
 
 
-
 class End2End_v5_tc(nn.Module):
 
 
     def __init__(self, device, tf_graph=False):
         
         super(End2End_v5_tc, self).__init__()
-        self.name='v5_tc'
+        self.name='v5'
         self.device = device
         self.tf_graph = tf_graph
 
@@ -693,6 +692,80 @@ class End2End_v5_tc(nn.Module):
         x = self.fc_5(x)
 
         return x, o_vlt, o_sf
+
+
+
+class End2End_v5_tc_naive(nn.Module):
+
+
+    def __init__(self, device, tf_graph=False):
+        
+        super(End2End_v5_tc_naive, self).__init__()
+        self.name='v5'
+        self.device = device
+        self.tf_graph = tf_graph
+
+
+        self.cat_dim = len(CAT_FEA_HOT)
+        self.vlt_dim = len(VLT_FEA)
+        self.sf_dim = len(SF_FEA)
+        self.oth_dim = len(MORE_FEA)
+        self.is_dim = len(IS_FEA)
+
+        self.input_dim =  self.vlt_dim + self.sf_dim + self.oth_dim + self.is_dim +self.cat_dim
+        self.hidden_dim = [[50, 60], [1, 1], 10, 5]
+        self.output_dim = 1
+
+        self.fc_vlt_1 = nn.Linear(self.vlt_dim+self.cat_dim, self.hidden_dim[0][0]) 
+        self.fc_vlt_2 = nn.Linear(self.hidden_dim[0][0], self.hidden_dim[1][0])  
+
+        self.fc_sf_1 = nn.Linear(self.sf_dim+self.cat_dim, self.hidden_dim[0][1]) 
+        self.fc_sf_2 = nn.Linear(self.hidden_dim[0][1], self.hidden_dim[1][1]) 
+
+        self.fc_3 = nn.Linear(self.hidden_dim[0][0]+self.hidden_dim[0][1]+self.oth_dim+self.is_dim, 
+                                            self.hidden_dim[2])
+        self.fc_4 = nn.Linear(self.hidden_dim[2], self.hidden_dim[3])
+        self.fc_5 = nn.Linear(self.hidden_dim[3], self.output_dim)
+        self.init_weights()
+
+
+    def init_weights(self):
+        """Initialize weights."""
+        self.fc_vlt_1.weight.data.normal_(0.0, 0.01)
+        self.fc_vlt_1.bias.data.fill_(0)
+        self.fc_vlt_2.weight.data.normal_(0.0, 0.01)
+        self.fc_vlt_2.bias.data.fill_(0)
+
+        self.fc_sf_1.weight.data.normal_(0.0, 0.01)
+        self.fc_sf_1.bias.data.fill_(0)
+        self.fc_sf_2.weight.data.normal_(0.0, 0.01)
+        self.fc_sf_2.bias.data.fill_(0)
+
+        self.fc_3.weight.data.normal_(0.0, 0.01)
+        self.fc_3.bias.data.fill_(0)
+        self.fc_4.weight.data.normal_(0.0, 0.01)
+        self.fc_4.bias.data.fill_(0)
+        self.fc_5.weight.data.normal_(0.0, 0.01)
+        self.fc_5.bias.data.fill_(0)
+
+
+    def forward(self, x_vlt, x_sf, x_cat, x_oth, x_is):
+
+        x1 = self.fc_vlt_1(torch.cat([x_vlt, x_cat], 1))
+        x1 = F.relu(x1)
+        o_vlt = self.fc_vlt_2(x1)
+
+        x2 = self.fc_sf_1(torch.cat([x_sf, x_cat], 1))
+        x2 = F.relu(x2)
+        o_sf = self.fc_sf_2(x2)
+
+        x3 = self.fc_3(torch.cat([x1, x2, x_oth, x_is],1))
+        x4 = F.relu(x3)
+        x4 = self.fc_4(x4)
+        x5 = F.relu(x4)
+        x5 = self.fc_5(x5)
+
+        return x5, o_vlt, o_sf, x4, x3
 
 
 
@@ -831,7 +904,7 @@ class End2End_v6_tc(nn.Module):
     def __init__(self, device, tf_graph=False):
         
         super(End2End_v6_tc, self).__init__()
-        self.name='v6_tc'
+        self.name='v6'
         self.device = device
         self.tf_graph = tf_graph
 
@@ -902,7 +975,7 @@ class End2End_v7_tc(nn.Module):
     def __init__(self, device, tf_graph=False):
         
         super(End2End_v7_tc, self).__init__()
-        self.name='v7_tc'
+        self.name='v7'
         self.device = device
         self.tf_graph = tf_graph
 

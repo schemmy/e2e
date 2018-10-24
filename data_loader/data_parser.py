@@ -5,8 +5,10 @@ import warnings
 import pickle
 from scipy.stats import gamma
 import datetime as dt
+import sys
+sys.path.append('../')
 from utils.demand_pkg import *
-from config import *
+from configs.config import *
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 
@@ -156,7 +158,9 @@ class data_parser:
         df_sl = pd.read_csv('%s%s' %(path, filename), index_col=0)
         df_sl.rename(columns=lambda x: (dt.datetime(2016,1,1) + dt.timedelta(days=int(x)-730)).date(), inplace=True)
 
-        X.drop_duplicates(['item_sku_id', 'complete_dt'], keep='first', inplace=True)
+        # X.drop_duplicates(['item_sku_id', 'complete_dt'], keep='first', inplace=True)
+        X['complete_date'] = X.apply(lambda x: x['complete_dt'].date(), axis=1)
+        X.drop_duplicates(['item_sku_id', 'complete_date'], keep='first', inplace=True)
 
         X['next_complete_dt'] = X.groupby('item_sku_id').complete_dt.shift(-1).fillna(dt.datetime(2018,8,31))
         
