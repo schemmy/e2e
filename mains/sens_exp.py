@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-19 16:26:07
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-23 14:33:03
+# @Last Modified at:   2018-10-24 17:48:52
 
 import sys
 sys.path.append('../')
@@ -114,6 +114,7 @@ for (i,b) in enumerate(hb):
     sens_cost.iloc[i,:] = df_cost_agg[str_list].mean()
     sens_hold.iloc[i,:] = df_holding_agg[str_list].mean()
     sens_sout.iloc[i,:] = df_back_agg[str_list].mean()
+    # sens_sout.loc[:,'OPT'] = sens_sout.loc[:,'OPT']/2
 
 
 fig, ax = plt.subplots(figsize=(8, 6))
