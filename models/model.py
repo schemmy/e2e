@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 15:45:51
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-23 18:08:25
+# @Last Modified at:   2018-10-25 10:25:36
 # Template:
 # https://github.com/yunjey/domain-transfer-network/blob/master/model.py
 
@@ -917,7 +917,6 @@ class End2End_v6_tc(nn.Module):
         self.input_dim =  self.vlt_dim + self.sf_dim + self.oth_dim + self.is_dim +self.cat_dim
         self.hidden_dim = [[50, 50], [20, 20], [1, 1], 10]
         self.output_dim = 1
-        self.q = 0.9
 
         self.fc_vlt_1 = nn.Linear(self.vlt_dim+self.cat_dim, self.hidden_dim[0][0]) 
         self.fc_vlt_2 = nn.Linear(self.hidden_dim[0][0], self.hidden_dim[1][0])  
@@ -940,9 +939,9 @@ class End2End_v6_tc(nn.Module):
         self.fc_vlt_3.weight.data.normal_(0.0, 0.01)
         self.fc_vlt_3.bias.data.fill_(0)
 
-        self.sf_mqrnn.load_state_dict(torch.load('../logs/torch/mqrnn_35.pkl', map_location=self.device))
-        for param in self.sf_mqrnn.parameters():
-            param.requires_grad = False
+        # self.sf_mqrnn.load_state_dict(torch.load('../logs/torch/mqrnn_35.pkl', map_location=self.device))
+        # for param in self.sf_mqrnn.parameters():
+            # param.requires_grad = False
 
         self.fc_3.weight.data.normal_(0.0, 0.01)
         self.fc_3.bias.data.fill_(0)

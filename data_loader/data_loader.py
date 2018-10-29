@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-09 11:00:00
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-23 15:05:53
+# @Last Modified at:   2018-10-29 13:08:13
 
 
 import torch
@@ -33,6 +33,7 @@ class E2E_Dataset(data.Dataset):
         else:
             df_test = o2[(o2['sku_id'].isin(sku_test)) & (o2['create_tm'] >= dt.datetime(2018,7,27))]\
                         .reset_index(drop=True)
+            # df_test = o2[o2['create_tm'] >= dt.datetime(2018,8,1)].reset_index(drop=True)
 
         self.train_len = len(df_train)
         self.test_len = len(df_test)
@@ -42,7 +43,8 @@ class E2E_Dataset(data.Dataset):
         df_train = pd.concat([df_train[VLT_FEA+SF_FEA+CAT_FEA_HOT+MORE_FEA+IS_FEA], \
                                 df_train[LABEL], df_train[LABEL_vlt+LABEL_sf+IDX+SEQ2SEQ]], axis=1)
         df_test = pd.concat([df_test[VLT_FEA+SF_FEA+CAT_FEA_HOT+MORE_FEA+IS_FEA], \
-                                df_test[LABEL], df_test[LABEL_vlt+LABEL_sf+IDX+SEQ2SEQ]], axis=1)
+                                df_test[LABEL], df_test[LABEL_vlt+LABEL_sf+IDX+SEQ2SEQ+
+                                ['initial_stock', 'next_complete_dt']]], axis=1)
 
         X_train_ns, y_train_ns, id_train = df_train[SCALE_FEA], df_train[LABEL], df_train[IDX]
         X_test_ns, y_test_ns, id_test = df_test[SCALE_FEA], df_test[LABEL], df_test[IDX]
@@ -66,8 +68,9 @@ class E2E_Dataset(data.Dataset):
             df = self.X_test.astype(float)
             lb = self.y_test.astype(float)
             s2s = df_test
-            pd.concat([id_test, df_test[['vlt_actual']]], axis=1)\
-                                .to_csv('../logs/torch/pred_sku.csv', index=False)
+            pd.concat([id_test, df_test[['vlt_actual', 'initial_stock', 'mean_14', 
+                                        'review_period', 'next_complete_dt']]], axis=1)\
+                                          .to_csv('../logs/torch/pred_sku.csv', index=False)
         else:
             df = self.X_train.astype(float)
             lb = self.y_train.astype(float)

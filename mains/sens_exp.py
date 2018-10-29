@@ -2,10 +2,12 @@
 # @Author: chenxinma
 # @Date:   2018-10-19 16:26:07
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-24 17:48:52
+# @Last Modified at:   2018-10-29 13:25:27
 
 import sys
 sys.path.append('../')
+import torch
+
 from utils.benchmark import *
 import pandas as pd
 import argparse
@@ -14,13 +16,15 @@ import os, pickle
 import warnings
 from tqdm import tqdm
 import math
-import seaborn as sns
 import scipy.stats as st
 import datetime as dt
+import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
-import torch
+import seaborn as sns
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_name', type=str , default='v5',
@@ -108,28 +112,27 @@ for (i,b) in enumerate(hb):
     for str1 in str_list:
         str2 = str1 + '_inv'
         df_holding_agg[str1] = o4[str2].apply(lambda x: h * sum([inv for inv in x if inv>0]) )
-        df_back_agg[str1] = o4[str2].apply(lambda x: b * (0 if  x==[] else max(0, -x[-1])))
+        df_back_agg[str1] = o4[str2].apply(lambda x: b * -sum([inv for inv in x if inv<0]) )
         df_cost_agg[str1] = df_holding_agg[str1] + df_back_agg[str1]
         
     sens_cost.iloc[i,:] = df_cost_agg[str_list].mean()
     sens_hold.iloc[i,:] = df_holding_agg[str_list].mean()
     sens_sout.iloc[i,:] = df_back_agg[str_list].mean()
-    # sens_sout.loc[:,'OPT'] = sens_sout.loc[:,'OPT']/2
 
 
-fig, ax = plt.subplots(figsize=(8, 6))
-ax.plot(sens_cost);
-ax.legend(sens_cost.columns, loc=0)
-ax.set_xlabel('b/h')
-ax.set_ylabel('Total Cost')
-ax.set_title('Sensitivity test on different ratios of b/h')
-plt.savefig('../figures/eps/sens_cost.eps',dpi=200);
+# fig, ax = plt.subplots(figsize=(8, 6))
+# ax.plot(sens_cost);
+# ax.legend(sens_cost.columns, loc=0)
+# ax.set_xlabel('b/h')
+# ax.set_ylabel('Total Cost')
+# ax.set_title('Sensitivity test on different ratios of b/h')
+# plt.savefig('../figures/eps/sens_cost.eps',dpi=200);
 
 fig, ax = plt.subplots(figsize=(8, 6))
 ax.plot(sens_hold);
 ax.legend(sens_hold.columns, loc=0)
 ax.set_xlabel('b/h')
-ax.set_ylabel('Total Cost')
+ax.set_ylabel('Holding Cost')
 ax.set_title('Sensitivity test on different ratios of b/h')
 plt.savefig('../figures/eps/sens_hold.eps',dpi=200);
 

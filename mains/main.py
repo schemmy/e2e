@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:30:40
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-24 17:55:03
+# @Last Modified at:   2018-10-29 13:30:49
 
 import sys
 sys.path.append('../')
@@ -90,12 +90,12 @@ if __name__ == '__main__':
     # tf.app.run()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', type=str , default='v5',
+    parser.add_argument('--model_name', type=str , default='v6',
                         help='v5: MLP; v6: RNN')
     parser.add_argument('--test', type=int, default=1)
     parser.add_argument('--test_sku', type=str, default='None')
     parser.add_argument('--b_value', type=int, default=None)
-    parser.add_argument('--model_to_load', type=str , default='e2e_v5.pkl',
+    parser.add_argument('--model_to_load', type=str , default='e2e_v6_25.pkl',
                         help='model to be loaded for evaluation')
     parser.add_argument('--train_check', type=str , default='None',
                         help='checkpoint for continuing training')

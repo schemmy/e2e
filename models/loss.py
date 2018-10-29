@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-09 11:00:00
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-22 17:43:59
+# @Last Modified at:   2018-10-25 13:19:59
 
 
 import torch
@@ -29,7 +29,7 @@ class QauntileLoss(nn.Module):
         self.use_square = use_square
     
     # score is N x 31
-    def forward(self, input, target, quantile=0.7):
+    def forward(self, input, target, quantile):
         
         if self.use_square:
             input = torch.pow(input, 2)

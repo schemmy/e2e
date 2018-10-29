@@ -2,7 +2,7 @@
 # @Author: chenxinma
 # @Date:   2018-10-01 16:04:49
 # @Last Modified by:   chenxinma
-# @Last Modified at:   2018-10-24 10:48:31
+# @Last Modified at:   2018-10-29 13:31:32
 
 from models.model import *
 from models.loss import *
@@ -10,8 +10,10 @@ from data_loader.data_loader import *
 import os
 from subprocess import call
 from tensorboardX import SummaryWriter
+import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
-import seaborn as sns
+# import seaborn as sns
 
 class Trainer(object):
 
